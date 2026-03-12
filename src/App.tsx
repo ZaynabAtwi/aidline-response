@@ -7,13 +7,10 @@ import { LanguageProvider } from "@/i18n/LanguageContext";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Navbar from "./components/Navbar";
 import Index from "./pages/Index";
-import Shelters from "./pages/Shelters";
 import Clinics from "./pages/Clinics";
 import Medication from "./pages/Medication";
 import Volunteers from "./pages/Volunteers";
 import SOS from "./pages/SOS";
-import Food from "./pages/Food";
-import GasStations from "./pages/GasStations";
 import Chat from "./pages/Chat";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
@@ -50,13 +47,10 @@ const AppRoutes = () => {
             <Navbar />
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/shelters" element={<Shelters />} />
               <Route path="/clinics" element={<Clinics />} />
               <Route path="/medication" element={<Medication />} />
               <Route path="/volunteers" element={<Volunteers />} />
               <Route path="/sos" element={<SOS />} />
-              <Route path="/food" element={<Food />} />
-              <Route path="/gas-stations" element={<GasStations />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/onboarding" element={<Navigate to="/" replace />} />
