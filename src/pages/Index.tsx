@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Building2, UtensilsCrossed, Stethoscope, Pill, Users, AlertTriangle, Fuel, MessageCircle } from "lucide-react";
+import { Stethoscope, Pill, Users, AlertTriangle, MessageCircle } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useLanguage } from "@/i18n/LanguageContext";
 import LanguageToggle from "@/components/LanguageToggle";
@@ -9,12 +9,9 @@ const Index = () => {
   const { t } = useLanguage();
 
   const actions = [
-  { label: t("home.findShelter"), description: t("home.findShelterDesc"), icon: Building2, path: "/shelters", color: "bg-primary/15 text-primary glow-primary" },
-  { label: t("home.findFood"), description: t("home.findFoodDesc"), icon: UtensilsCrossed, path: "/food", color: "bg-success/15 text-success glow-success" },
   { label: t("home.findClinics"), description: t("home.findClinicsDesc"), icon: Stethoscope, path: "/clinics", color: "bg-accent/15 text-accent glow-accent" },
   { label: t("home.medication"), description: t("home.medicationDesc"), icon: Pill, path: "/medication", color: "bg-primary/15 text-primary glow-primary" },
   { label: t("home.volunteer"), description: t("home.volunteerDesc"), icon: Users, path: "/volunteers", color: "bg-success/15 text-success glow-success" },
-  { label: t("home.findGas"), description: t("home.findGasDesc"), icon: Fuel, path: "/gas-stations", color: "bg-accent/15 text-accent glow-accent" },
   { label: t("home.chat"), description: t("home.chatDesc"), icon: MessageCircle, path: "/chat", color: "bg-primary/15 text-primary glow-primary" }];
 
 
