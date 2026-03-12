@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Navbar from "./components/Navbar";
+import { AnnouncementBanner } from "./components/AnnouncementBanner";
 import Index from "./pages/Index";
 import Clinics from "./pages/Clinics";
 import Medication from "./pages/Medication";
