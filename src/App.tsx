@@ -45,6 +45,7 @@ const AppRoutes = () => {
         <Route path="/ngo-secure" element={<NgoSecure />} />
         <Route path="*" element={
           <>
+            <AnnouncementBanner />
             <Navbar />
             <Routes>
               <Route path="/" element={<Index />} />
