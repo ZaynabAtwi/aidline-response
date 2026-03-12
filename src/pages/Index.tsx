@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Building2, UtensilsCrossed, Stethoscope, Pill, Users, AlertTriangle, Fuel, MessageCircle } from "lucide-react";
+import { Stethoscope, Pill, Users, AlertTriangle, MessageCircle } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useLanguage } from "@/i18n/LanguageContext";
 import LanguageToggle from "@/components/LanguageToggle";
