@@ -1,19 +1,26 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { api } from "@/integrations/mysql/client";
+import { ngoApi as mysqlNgoApi } from "@/lib/api/client";
 import {
   Shield, Lock, Building2, Pill, AlertTriangle, MessageSquare,
-  Save, X, Edit2, Clock, RefreshCw, LogOut, Send
+  Clock, RefreshCw, LogOut, Send
 } from "lucide-react";
 
-const INACTIVITY_TIMEOUT = 10 * 60 * 1000;
+const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
-type Tab = "med_requests" | "sos" | "shelters" | "notes";
+// ── API helper — routes through the MySQL backend ──
+const ngoApi = async (token: string, action: string, payload?: any) => {
+  const res = await mysqlNgoApi.action(token, action, payload);
+  if (!res.success) throw new Error((res as any).error || "API error");
+  return res.data;
+};
 
-interface Shelter { id: string; name: string; address: string | null; capacity: number; available_spots: number; is_operational: boolean; }
-interface MedReq { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; }
+type Tab = "med_requests" | "sos" | "requests" | "notes";
+
+interface MedReq   { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; }
 interface SOSAlert { id: string; message: string | null; status: string; created_at: string; }
-interface Note { id: string; content: string; created_at: string; }
+interface Note     { id: string; content: string; created_at: string; }
+interface ServiceRequest { id: string; type: string; title: string; urgency: string; status: string; created_at: string; category?: string; priority_score?: number; }
 
 const urgencyColor: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
@@ -31,14 +38,17 @@ const sosColor: Record<string, string> = {
 
 const NgoSecure = () => {
   const { lang } = useLanguage();
+  const navigate = useNavigate();
   const isAr = lang === "ar";
 
+  // Auth state
   const [token, setToken] = useState("");
   const [tokenInput, setTokenInput] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
+  // Inactivity timer
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const resetTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -60,6 +70,7 @@ const NgoSecure = () => {
     };
   }, [authenticated, resetTimer]);
 
+  // No-index meta tag
   useEffect(() => {
     const meta = document.createElement("meta");
     meta.name = "robots";
@@ -68,14 +79,17 @@ const NgoSecure = () => {
     return () => { document.head.removeChild(meta); };
   }, []);
 
+  // Tab state
   const [tab, setTab] = useState<Tab>("sos");
+
+  // Data
   const [medRequests, setMedRequests] = useState<MedReq[]>([]);
   const [sosAlerts, setSosAlerts] = useState<SOSAlert[]>([]);
-  const [shelters, setShelters] = useState<Shelter[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
-  const [editingShelter, setEditingShelter] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState({ capacity: 0, available_spots: 0, is_operational: true });
+
+  // Notes
   const [noteInput, setNoteInput] = useState("");
   const [addingNote, setAddingNote] = useState(false);
 
@@ -83,11 +97,9 @@ const NgoSecure = () => {
     setAuthLoading(true);
     setAuthError("");
     try {
-      const result = await api.ngo.secureAction(tokenInput, "get_sos_alerts");
-      if (result) {
-        setToken(tokenInput);
-        setAuthenticated(true);
-      }
+      await ngoApi(tokenInput, "get_sos_alerts");
+      setToken(tokenInput);
+      setAuthenticated(true);
     } catch {
       setAuthError(isAr ? "رمز غير صالح أو منتهي الصلاحية" : "Invalid or expired token");
     }
@@ -104,17 +116,17 @@ const NgoSecure = () => {
     if (!token) return;
     setLoading(true);
     try {
-      const [meds, sos, shel, n] = await Promise.all([
-        api.ngo.secureAction(token, "get_medication_requests"),
-        api.ngo.secureAction(token, "get_sos_alerts"),
-        api.ngo.secureAction(token, "get_shelters"),
-        api.ngo.secureAction(token, "get_notes"),
+      const [meds, sos, reqs, n] = await Promise.all([
+        ngoApi(token, "get_medication_requests"),
+        ngoApi(token, "get_sos_alerts"),
+        ngoApi(token, "get_requests"),
+        ngoApi(token, "get_notes"),
       ]);
-      setMedRequests(meds?.data || []);
-      setSosAlerts(sos?.data || []);
-      setShelters(shel?.data || []);
-      setNotes(n?.data || []);
-    } catch { /* API unavailable */ }
+      setMedRequests(meds || []);
+      setSosAlerts(sos || []);
+      setServiceRequests(reqs || []);
+      setNotes(n || []);
+    } catch { /* silent */ }
     setLoading(false);
   }, [token]);
 
@@ -122,39 +134,26 @@ const NgoSecure = () => {
     if (authenticated) fetchData();
   }, [authenticated, fetchData]);
 
-  const saveShelter = async (id: string) => {
-    try {
-      await api.ngo.secureAction(token, "update_shelter", { id, ...editValues });
-    } catch { /* API unavailable */ }
-    setEditingShelter(null);
-    fetchData();
-  };
-
   const updateSos = async (id: string, status: string) => {
-    try {
-      await api.ngo.secureAction(token, "update_sos_status", { id, status });
-    } catch { /* API unavailable */ }
+    await ngoApi(token, "update_sos_status", { id, status });
     fetchData();
   };
 
   const updateMed = async (id: string, status: string) => {
-    try {
-      await api.ngo.secureAction(token, "update_med_status", { id, status });
-    } catch { /* API unavailable */ }
+    await ngoApi(token, "update_med_status", { id, status });
     fetchData();
   };
 
   const addNote = async () => {
     if (!noteInput.trim()) return;
     setAddingNote(true);
-    try {
-      const result = await api.ngo.secureAction(token, "add_note", { content: noteInput.trim() });
-      if (result?.data) setNotes([result.data, ...notes]);
-    } catch { /* API unavailable */ }
+    const result = await ngoApi(token, "add_note", { content: noteInput.trim() });
+    if (result) setNotes([result, ...notes]);
     setNoteInput("");
     setAddingNote(false);
   };
 
+  // ─── LOGIN SCREEN ───
   if (!authenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[hsl(220,25%,6%)] px-4">
@@ -204,15 +203,17 @@ const NgoSecure = () => {
     );
   }
 
+  // ─── SECURE DASHBOARD ───
   const tabs: { id: Tab; label: string; icon: typeof Building2; count?: number }[] = [
-    { id: "sos", label: isAr ? "تنبيهات SOS" : "SOS Alerts", icon: AlertTriangle, count: sosAlerts.filter(a => a.status === "active").length },
-    { id: "med_requests", label: isAr ? "طلبات الأدوية" : "Med Requests", icon: Pill, count: medRequests.filter(m => m.status === "pending").length },
-    { id: "shelters", label: isAr ? "الملاجئ" : "Shelters", icon: Building2 },
-    { id: "notes", label: isAr ? "ملاحظات التنسيق" : "Coordination Notes", icon: MessageSquare },
+    { id: "sos",          label: isAr ? "تنبيهات SOS"    : "SOS Alerts",         icon: AlertTriangle,  count: sosAlerts.filter(a => a.status === "active").length },
+    { id: "med_requests", label: isAr ? "طلبات الأدوية"  : "Med Requests",        icon: Pill,           count: medRequests.filter(m => m.status === "pending").length },
+    { id: "requests",     label: isAr ? "الطلبات الموجَّهة" : "Routed Requests",  icon: Building2,      count: serviceRequests.filter(r => r.status === "routed").length },
+    { id: "notes",        label: isAr ? "ملاحظات التنسيق" : "Coordination Notes", icon: MessageSquare },
   ];
 
   return (
     <div className="min-h-screen bg-[hsl(220,25%,6%)]">
+      {/* Top bar */}
       <div className="border-b border-[hsl(220,15%,15%)] bg-[hsl(220,22%,8%)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
@@ -234,6 +235,7 @@ const NgoSecure = () => {
       </div>
 
       <div className="mx-auto max-w-5xl px-4 py-6">
+        {/* Tabs */}
         <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,8%)] p-1">
           {tabs.map((t) => (
             <button
@@ -258,6 +260,7 @@ const NgoSecure = () => {
           ))}
         </div>
 
+        {/* SOS Alerts */}
         {tab === "sos" && (
           <div className="space-y-3">
             {sosAlerts.length === 0 && <EmptyBox text={isAr ? "لا توجد تنبيهات" : "No alerts"} />}
@@ -295,6 +298,7 @@ const NgoSecure = () => {
           </div>
         )}
 
+        {/* Med Requests */}
         {tab === "med_requests" && (
           <div className="space-y-3">
             {medRequests.length === 0 && <EmptyBox text={isAr ? "لا توجد طلبات" : "No requests"} />}
@@ -311,7 +315,7 @@ const NgoSecure = () => {
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {(["pending", "confirmed", "fulfilled", "escalated", "cancelled"] as const).map((s) => (
+                  {(["pending", "approved", "fulfilled", "cancelled"] as const).map((s) => (
                     <button
                       key={s}
                       onClick={() => updateMed(r.id, s)}
@@ -330,70 +334,35 @@ const NgoSecure = () => {
           </div>
         )}
 
-        {tab === "shelters" && (
+        {/* Routed Service Requests */}
+        {tab === "requests" && (
           <div className="space-y-3">
-            {shelters.length === 0 && <EmptyBox text={isAr ? "لا توجد ملاجئ" : "No shelters"} />}
-            {shelters.map((s) => (
-              <div key={s.id} className="rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,10%)] p-5">
+            {serviceRequests.length === 0 && <EmptyBox text={isAr ? "لا توجد طلبات موجَّهة" : "No routed requests"} />}
+            {serviceRequests.map((r) => (
+              <div key={r.id} className="rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,10%)] p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="font-heading text-base font-semibold text-[hsl(210,20%,92%)]">{s.name}</h3>
-                    {s.address && <p className="text-xs text-[hsl(215,15%,45%)]">{s.address}</p>}
-                  </div>
-                  {editingShelter === s.id ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => saveShelter(s.id)} className="rounded-lg bg-[hsl(150,60%,42%)] p-2 text-[hsl(220,25%,8%)]"><Save className="h-4 w-4" /></button>
-                      <button onClick={() => setEditingShelter(null)} className="rounded-lg bg-[hsl(220,18%,16%)] p-2 text-[hsl(215,15%,55%)]"><X className="h-4 w-4" /></button>
+                    <h3 className="font-heading text-sm font-semibold text-[hsl(210,20%,92%)]">{r.title}</h3>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-[hsl(215,15%,45%)]">
+                      <span className="capitalize">{r.type}</span>
+                      {r.category && <span>· {r.category.replace(/_/g, " ")}</span>}
+                      {r.priority_score !== undefined && <span>· Priority: {r.priority_score}</span>}
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => { setEditingShelter(s.id); setEditValues({ capacity: s.capacity, available_spots: s.available_spots, is_operational: s.is_operational }); }}
-                      className="rounded-lg bg-[hsl(220,18%,16%)] p-2 text-[hsl(215,15%,55%)] hover:text-[hsl(210,20%,85%)]"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                  )}
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-[hsl(215,15%,40%)]">
+                      <Clock className="h-3 w-3" />{new Date(r.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColor[r.urgency] || ""}`}>{r.urgency}</span>
+                    <span className="text-xs text-[hsl(215,15%,50%)] capitalize">{r.status}</span>
+                  </div>
                 </div>
-
-                {editingShelter === s.id ? (
-                  <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
-                    <div>
-                      <label className="mb-1 block text-xs text-[hsl(215,15%,45%)]">{isAr ? "السعة" : "Capacity"}</label>
-                      <input type="number" value={editValues.capacity} onChange={(e) => setEditValues({ ...editValues, capacity: +e.target.value })}
-                        className="w-full rounded-lg border border-[hsl(220,15%,20%)] bg-[hsl(220,25%,8%)] px-3 py-2 text-sm text-[hsl(210,20%,92%)] focus:ring-2 focus:ring-[hsl(185,70%,42%)]" />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-[hsl(215,15%,45%)]">{isAr ? "المتاح" : "Available"}</label>
-                      <input type="number" value={editValues.available_spots} onChange={(e) => setEditValues({ ...editValues, available_spots: +e.target.value })}
-                        className="w-full rounded-lg border border-[hsl(220,15%,20%)] bg-[hsl(220,25%,8%)] px-3 py-2 text-sm text-[hsl(210,20%,92%)] focus:ring-2 focus:ring-[hsl(185,70%,42%)]" />
-                    </div>
-                    <label className="flex items-end gap-2 text-sm text-[hsl(210,20%,85%)]">
-                      <input type="checkbox" checked={editValues.is_operational} onChange={(e) => setEditValues({ ...editValues, is_operational: e.target.checked })}
-                        className="h-4 w-4 rounded border-[hsl(220,15%,20%)]" />
-                      {isAr ? "تعمل" : "Operational"}
-                    </label>
-                  </div>
-                ) : (
-                  <div className="mt-3 flex items-center gap-4">
-                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${s.is_operational ? "bg-[hsl(150,60%,42%)]/15 text-[hsl(150,60%,50%)]" : "bg-[hsl(0,80%,55%)]/15 text-[hsl(0,80%,55%)]"}`}>
-                      {s.is_operational ? (isAr ? "تعمل" : "Operational") : (isAr ? "متوقفة" : "Closed")}
-                    </span>
-                    <span className="text-sm text-[hsl(215,15%,55%)]">
-                      <span className="font-semibold text-[hsl(210,20%,92%)]">{s.available_spots}</span>/{s.capacity}
-                    </span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-[hsl(220,15%,16%)]">
-                      <div
-                        className={`h-full rounded-full ${s.available_spots > 0 ? "bg-[hsl(150,60%,42%)]" : "bg-[hsl(38,90%,55%)]"}`}
-                        style={{ width: `${s.capacity > 0 ? ((s.capacity - s.available_spots) / s.capacity) * 100 : 0}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
             ))}
           </div>
         )}
 
+        {/* Coordination Notes */}
         {tab === "notes" && (
           <div>
             <div className="mb-4 flex gap-2">
@@ -425,6 +394,7 @@ const NgoSecure = () => {
         )}
       </div>
 
+      {/* Inactivity warning bar */}
       <div className="fixed bottom-0 start-0 end-0 border-t border-[hsl(220,15%,15%)] bg-[hsl(220,22%,8%)] px-4 py-2 text-center text-xs text-[hsl(215,15%,40%)]">
         <Shield className="mb-0.5 inline h-3 w-3" /> {isAr ? "خروج تلقائي بعد 10 دقائق من عدم النشاط" : "Auto-logout after 10 minutes of inactivity"}
       </div>

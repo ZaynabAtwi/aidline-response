@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { MessageCircle, Send, AlertTriangle, RefreshCw, Check, Eye } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { api } from "@/integrations/mysql/client";
+import { chatApi } from "@/lib/api/client";
+import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 
 interface Message {
   id: string;
-  sender_type: string;
+  sender: string;
   message: string;
   is_read: boolean;
   created_at: string;
@@ -27,6 +28,7 @@ const Chat = () => {
   const [sending, setSending] = useState(false);
   const [lastSentAt, setLastSentAt] = useState(0);
   const [cooldown, setCooldown] = useState(0);
+  const [useBackend, setUseBackend] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,24 +48,57 @@ const Chat = () => {
   const loadConversation = async () => {
     setLoading(true);
     try {
-      const conv = await api.communication.getOrCreateConversation({ user_id: user!.id });
-      if (conv?.id) {
-        setConversationId(conv.id);
-        await fetchMessages(conv.id);
+      const res = await chatApi.createConversation();
+      if (res.success && res.data?.id) {
+        setConversationId(res.data.id);
+        setUseBackend(true);
+        await fetchMessages(res.data.id, true);
+        setLoading(false);
+        return;
       }
     } catch {
-      // API unavailable
+      setUseBackend(false);
+    }
+
+    // Fallback: Supabase
+    const { data: convos } = await (supabase as any)
+      .from("chat_conversations")
+      .select("id")
+      .eq("user_id", user!.id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    let convId = convos?.[0]?.id;
+    if (!convId) {
+      const { data: newConv } = await (supabase as any)
+        .from("chat_conversations")
+        .insert({ user_id: user!.id })
+        .select("id")
+        .single();
+      convId = newConv?.id;
+    }
+    if (convId) {
+      setConversationId(convId);
+      await fetchMessages(convId, false);
     }
     setLoading(false);
   };
 
-  const fetchMessages = async (convId: string) => {
-    try {
-      const data = await api.communication.getMessages(convId);
-      setMessages(data);
-    } catch {
-      // API unavailable
+  const fetchMessages = async (convId: string, backend: boolean) => {
+    if (backend) {
+      try {
+        const res = await chatApi.getMessages(convId);
+        if (res.success) { setMessages(res.data); return; }
+      } catch {
+        // fall through
+      }
     }
+    const { data } = await (supabase as any)
+      .from("chat_messages")
+      .select("*")
+      .eq("conversation_id", convId)
+      .order("created_at", { ascending: true });
+    if (data) setMessages(data as Message[]);
   };
 
   const handleSend = async () => {
@@ -77,34 +112,45 @@ const Chat = () => {
     }
 
     setSending(true);
-    try {
-      await api.communication.sendMessage({
-        conversation_id: conversationId,
-        sender_type: "user",
-        sender_id: user!.id,
-        message: input.trim(),
-      });
+    if (useBackend) {
+      try {
+        const res = await chatApi.sendMessage(conversationId, input.trim());
+        if (res.success) {
+          setInput("");
+          setLastSentAt(Date.now());
+          await fetchMessages(conversationId, true);
+          setSending(false);
+          return;
+        }
+      } catch {
+        // fall through to Supabase
+      }
+    }
+    const { error } = await (supabase as any).from("chat_messages").insert({
+      conversation_id: conversationId,
+      sender: "user",
+      message: input.trim(),
+    });
+    if (!error) {
       setInput("");
       setLastSentAt(Date.now());
-      await fetchMessages(conversationId);
-    } catch {
-      // Silent fail
+      await fetchMessages(conversationId, false);
     }
     setSending(false);
   };
 
   const handleRefresh = () => {
-    if (conversationId) fetchMessages(conversationId);
+    if (conversationId) fetchMessages(conversationId, useBackend);
   };
 
   const getStatusIcon = (msg: Message) => {
-    if (msg.sender_type === "provider") return null;
+    if (msg.sender === "ngo") return null;
     if (msg.is_read) return <Eye className="h-3.5 w-3.5 text-primary" />;
     return <Check className="h-3.5 w-3.5 text-muted-foreground" />;
   };
 
   const getStatusText = (msg: Message) => {
-    if (msg.sender_type === "provider") return null;
+    if (msg.sender === "ngo") return null;
     if (msg.is_read) return isAr ? "مقروءة" : "Viewed";
     return isAr ? "مُرسلة" : "Sent";
   };
@@ -120,6 +166,7 @@ const Chat = () => {
   return (
     <div className="flex min-h-screen flex-col bg-background pb-24 md:pt-20">
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pt-6">
+        {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <MessageCircle className="h-7 w-7 text-primary" />
@@ -136,6 +183,7 @@ const Chat = () => {
           </button>
         </div>
 
+        {/* Emergency Notice */}
         <div className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
           <div>
@@ -148,6 +196,14 @@ const Chat = () => {
           </div>
         </div>
 
+        {/* Secure channel notice */}
+        <div className="mb-4 rounded-lg border border-border bg-secondary/30 px-4 py-2 text-xs text-muted-foreground">
+          {isAr
+            ? "🔒 جلسة محمية — لا يتم مشاركة بيانات هويتك مع جهات خارجية."
+            : "🔒 Secure session — your identity is not shared with external parties."}
+        </div>
+
+        {/* Messages Area */}
         <div className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-border bg-card p-4" style={{ minHeight: "300px", maxHeight: "60vh" }}>
           {messages.length === 0 ? (
             <div className="flex h-full items-center justify-center py-12 text-center text-muted-foreground">
@@ -155,17 +211,17 @@ const Chat = () => {
             </div>
           ) : (
             messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.sender_type === "user" ? "justify-end" : "justify-start"}`}>
+              <div key={msg.id} className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    msg.sender_type === "user"
+                    msg.sender === "user"
                       ? "rounded-br-md bg-primary text-primary-foreground"
                       : "rounded-bl-md bg-secondary text-secondary-foreground"
                   }`}
                 >
                   <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
                   <div className={`mt-1.5 flex items-center gap-1.5 text-[11px] ${
-                    msg.sender_type === "user" ? "opacity-70 justify-end" : "text-muted-foreground"
+                    msg.sender === "user" ? "opacity-70 justify-end" : "text-muted-foreground"
                   }`}>
                     <span>
                       {new Date(msg.created_at).toLocaleTimeString(isAr ? "ar" : "en", { hour: "2-digit", minute: "2-digit" })}
@@ -185,6 +241,7 @@ const Chat = () => {
           <div ref={bottomRef} />
         </div>
 
+        {/* Input Area */}
         <div className="mt-4 space-y-2">
           {cooldown > 0 && (
             <p className="text-center text-xs text-muted-foreground">

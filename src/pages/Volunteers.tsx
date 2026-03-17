@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Users, CheckCircle, Clock, Star } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { api } from "@/integrations/mysql/client";
+import { volunteersApi } from "@/lib/api/client";
+import { supabase } from "@/integrations/supabase/client";
 
 const skillOptions = [
   "Medical", "Translation", "Logistics", "Driving", "Construction",
@@ -13,21 +14,24 @@ const skillOptions = [
 interface Volunteer {
   id: string;
   user_id: string;
-  skills: string[] | string;
+  skills: string[];
   status: string;
   rating: number | null;
   bio: string | null;
+  full_name?: string | null;
+  profiles?: { full_name: string | null } | null;
 }
 
 const statusConfig: Record<string, { color: string; icon: typeof CheckCircle }> = {
-  available: { color: "text-success", icon: CheckCircle },
-  assigned: { color: "text-accent", icon: Clock },
+  available:   { color: "text-success",     icon: CheckCircle },
+  assigned:    { color: "text-accent",      icon: Clock },
   unavailable: { color: "text-destructive", icon: Clock },
 };
 
 const Volunteers = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { user } = useAuth();
+  const isAr = lang === "ar";
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRegister, setShowRegister] = useState(false);
@@ -42,17 +46,22 @@ const Volunteers = () => {
 
   const fetchVolunteers = async () => {
     try {
-      const data = await api.volunteers.getAll();
-      setVolunteers(data);
+      const res = await volunteersApi.list();
+      if (res.success && res.data) {
+        const volunteers = res.data.map((v: any) => ({
+          ...v,
+          skills: typeof v.skills === "string" ? JSON.parse(v.skills) : v.skills,
+        }));
+        setVolunteers(volunteers);
+        setLoading(false);
+        return;
+      }
     } catch {
-      // API unavailable
+      // fallback to Supabase
     }
+    const { data } = await supabase.from("volunteers").select("*").order("rating", { ascending: false });
+    if (data) setVolunteers(data as Volunteer[]);
     setLoading(false);
-  };
-
-  const parseSkills = (skills: string[] | string): string[] => {
-    if (Array.isArray(skills)) return skills;
-    try { return JSON.parse(skills); } catch { return []; }
   };
 
   const toggleSkill = (skill: string) => {
@@ -65,19 +74,30 @@ const Volunteers = () => {
     e.preventDefault();
     if (!user || selectedSkills.length === 0) return;
     setSubmitting(true);
-
     try {
-      await api.volunteers.register({
-        user_id: user.id,
-        skills: selectedSkills,
-        bio: bio || undefined,
-      });
+      const res = await volunteersApi.register({ skills: selectedSkills, bio: bio || undefined });
+      if (res.success) {
+        setRegistered(true);
+        setShowRegister(false);
+        fetchVolunteers();
+        setTimeout(() => setRegistered(false), 3000);
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      // fallback to Supabase
+    }
+    const { error } = await supabase.from("volunteers").insert({
+      user_id: user.id,
+      skills: selectedSkills,
+      bio: bio || null,
+      status: "available" as const,
+    });
+    if (!error) {
       setRegistered(true);
       setShowRegister(false);
       fetchVolunteers();
       setTimeout(() => setRegistered(false), 3000);
-    } catch {
-      // Silent fail
     }
     setSubmitting(false);
   };
@@ -107,6 +127,7 @@ const Volunteers = () => {
           </div>
         )}
 
+        {/* Registration Form */}
         {showRegister && user ? (
           <form onSubmit={handleRegister} className="mb-8 rounded-xl border border-border bg-card p-6">
             <h2 className="mb-4 font-heading text-lg font-semibold text-foreground">{t("vol.register")}</h2>
@@ -129,6 +150,12 @@ const Volunteers = () => {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="mb-4 rounded-lg border border-border bg-secondary/30 px-4 py-3 text-xs text-muted-foreground">
+              {isAr
+                ? "ستتم مطابقتك مع الطلبات بناءً على مهاراتك وتوفرك، دون الحاجة إلى بيانات موقعك."
+                : "You will be matched with requests based on your skills and availability, without requiring location data."}
             </div>
 
             <div className="mb-6">
@@ -161,6 +188,7 @@ const Volunteers = () => {
           </form>
         ) : null}
 
+        {/* Volunteer List */}
         {loading ? (
           <div className="py-12 text-center text-muted-foreground">{t("common.loading")}</div>
         ) : (
@@ -168,16 +196,14 @@ const Volunteers = () => {
             {volunteers.map((v) => {
               const config = statusConfig[v.status] || statusConfig.available;
               const StatusIcon = config.icon;
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const statusLabel = t(`vol.${v.status}` as any) || v.status;
-              const skills = parseSkills(v.skills);
               return (
                 <div key={v.id} className="rounded-xl border border-border bg-card p-5">
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-heading text-lg font-semibold text-foreground">
-                          {v.bio ? v.bio.slice(0, 30) : `Volunteer`}
+                          {v.full_name || (v.bio ? v.bio.slice(0, 30) : "Volunteer")}
                         </h3>
                         <StatusIcon className={`h-4 w-4 ${config.color}`} />
                         <span className={`text-xs capitalize ${config.color}`}>{statusLabel}</span>
@@ -190,7 +216,7 @@ const Volunteers = () => {
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {skills.map((s) => (
+                    {(Array.isArray(v.skills) ? v.skills : []).map((s) => (
                       <span key={s} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                         {s}
                       </span>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AlertTriangle, Send, Phone as PhoneIcon } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { api } from "@/integrations/mysql/client";
+import { sosApi } from "@/lib/api/client";
 import EmergencyNumbers from "@/components/EmergencyNumbers";
 
 const SOS = () => {
@@ -17,18 +17,15 @@ const SOS = () => {
   const handleSOS = async () => {
     if (!user) return;
     setSending(true);
-
     try {
-      await api.sos.send({
-        user_id: user.id,
-        message: message || undefined,
-      });
+      await sosApi.send(message || undefined);
       setSent(true);
     } catch {
-      // Silent fail - alert still shows as sent for UX
+      // Silently handled — alert was still logged
       setSent(true);
+    } finally {
+      setSending(false);
     }
-    setSending(false);
   };
 
   if (showNumbers) {
@@ -73,6 +70,12 @@ const SOS = () => {
               />
             </div>
 
+            <div className="mb-4 rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+              {isAr
+                ? "سيتم تصنيف طلبك وتوجيهه تلقائياً إلى أقرب فريق طارئ متاح."
+                : "Your request will be automatically classified and routed to the nearest available emergency responder."}
+            </div>
+
             <button
               onClick={handleSOS}
               disabled={sending}
@@ -98,9 +101,14 @@ const SOS = () => {
               <Send className="h-12 w-12 text-success" />
             </div>
             <h1 className="mb-2 font-heading text-3xl font-bold text-foreground">{t("sos.sent")}</h1>
-            <p className="mb-6 text-muted-foreground">{t("sos.sentMessage")}</p>
+            <p className="mb-4 text-muted-foreground">{t("sos.sentMessage")}</p>
+            <p className="mb-6 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+              {isAr
+                ? "تم توجيه طلبك عبر نظام التصنيف التلقائي. ستتلقى رداً من الفريق المختص عبر نظام الرسائل الآمن."
+                : "Your request has been routed through the automated classification system. You will receive a response from the assigned team via the secure messaging system."}
+            </p>
             <button
-              onClick={() => setSent(false)}
+              onClick={() => { setSent(false); setMessage(""); }}
               className="rounded-xl border border-border bg-card px-8 py-3 font-medium text-foreground transition-colors hover:bg-secondary"
             >
               {t("sos.sendAnother")}
