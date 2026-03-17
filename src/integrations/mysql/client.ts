@@ -32,7 +32,7 @@ export const api = {
       needs_shelter: boolean;
       needs_medication: boolean;
       is_volunteering: boolean;
-      district: string;
+      district?: string;
       urgency: string;
     }) =>
       request<{ success: boolean }>('/auth/onboarding', {

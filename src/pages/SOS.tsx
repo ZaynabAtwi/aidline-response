@@ -72,10 +72,9 @@ const SOS = () => {
 
             <div className="mb-4 rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
               {isAr
-                ? "سيتم تصنيف طلبك وتوجيهه تلقائياً إلى أقرب فريق طارئ متاح."
-                : "Your request will be automatically classified and routed to the nearest available emergency responder."}
+                ? "سيتم تصنيف طلبك وتوجيهه تلقائياً إلى فريق الطوارئ المناسب."
+                : "Your request will be automatically classified and routed to the appropriate emergency response team."}
             </div>
-
             <button
               onClick={handleSOS}
               disabled={sending}
