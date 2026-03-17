@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
-import { Users, MapPin, CheckCircle, Clock, Star } from "lucide-react";
+import { Users, CheckCircle, Clock, Star } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useGeolocation } from "@/hooks/useGeolocation";
 
 
 const skillOptions = [
@@ -31,7 +30,6 @@ const statusConfig: Record<string, { color: string; icon: typeof CheckCircle }> 
 const Volunteers = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { position, requestLocation } = useGeolocation();
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRegister, setShowRegister] = useState(false);
@@ -61,18 +59,12 @@ const Volunteers = () => {
     if (!user || selectedSkills.length === 0) return;
     setSubmitting(true);
 
-    requestLocation();
-
     const insertData: any = {
       user_id: user.id,
       skills: selectedSkills,
       bio: bio || null,
       status: "available" as const,
     };
-
-    if (position) {
-      insertData.location = `POINT(${position.longitude} ${position.latitude})`;
-    }
 
     const { error } = await supabase.from("volunteers").insert(insertData);
     if (!error) {

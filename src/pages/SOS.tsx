@@ -1,25 +1,30 @@
 import { useState } from "react";
-import { AlertTriangle, MapPin, Send, Phone as PhoneIcon } from "lucide-react";
+import { AlertTriangle, Send, Phone as PhoneIcon, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { useGeolocation } from "@/hooks/useGeolocation";
 import { supabase } from "@/integrations/supabase/client";
 import EmergencyNumbers from "@/components/EmergencyNumbers";
+import { classifyAndRouteRequest, getRoutingModuleLabel } from "@/lib/requestRouting";
 
 const SOS = () => {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
-  const { position, requestLocation } = useGeolocation();
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [showNumbers, setShowNumbers] = useState(false);
+  const [routingModule, setRoutingModule] = useState<string | null>(null);
   const isAr = lang === "ar";
 
   const handleSOS = async () => {
     if (!user) return;
     setSending(true);
-    requestLocation();
+
+    const routingDecision = classifyAndRouteRequest({
+      kind: "sos_emergency",
+      description: message,
+      urgency: "critical",
+    });
 
     const insertData: any = {
       user_id: user.id,
@@ -27,12 +32,11 @@ const SOS = () => {
       status: "active" as const,
     };
 
-    if (position) {
-      insertData.location = `POINT(${position.longitude} ${position.latitude})`;
-    }
-
     const { error } = await supabase.from("sos_alerts").insert(insertData);
-    if (!error) setSent(true);
+    if (!error) {
+      setRoutingModule(getRoutingModuleLabel(routingDecision.module));
+      setSent(true);
+    }
     setSending(false);
   };
 
@@ -80,7 +84,7 @@ const SOS = () => {
             </div>
 
             <div className="mb-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" />
+              <ShieldCheck className="h-4 w-4" />
               <span>{t("sos.locationAuto")}</span>
             </div>
 
@@ -111,8 +115,16 @@ const SOS = () => {
             </div>
             <h1 className="mb-2 font-heading text-3xl font-bold text-foreground">{t("sos.sent")}</h1>
             <p className="mb-6 text-muted-foreground">{t("sos.sentMessage")}</p>
+            {routingModule && (
+              <p className="mb-6 text-sm text-muted-foreground">
+                {isAr ? `تم توجيه الطلب إلى: ${routingModule}` : `Request routed to: ${routingModule}`}
+              </p>
+            )}
             <button
-              onClick={() => setSent(false)}
+              onClick={() => {
+                setSent(false);
+                setRoutingModule(null);
+              }}
               className="rounded-xl border border-border bg-card px-8 py-3 font-medium text-foreground transition-colors hover:bg-secondary"
             >
               {t("sos.sendAnother")}

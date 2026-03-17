@@ -3,6 +3,7 @@ import { Pill, Clock, CheckCircle, AlertTriangle } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { classifyAndRouteRequest, getRoutingModuleLabel } from "@/lib/requestRouting";
 
 
 const medications = [
@@ -35,14 +36,16 @@ interface MedRequest {
 }
 
 const Medication = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { user } = useAuth();
+  const isAr = lang === "ar";
   const [selectedMed, setSelectedMed] = useState("");
   const [urgency, setUrgency] = useState("medium");
   const [notes, setNotes] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [requests, setRequests] = useState<MedRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const [routingModule, setRoutingModule] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) fetchRequests();
@@ -61,6 +64,13 @@ const Medication = () => {
     e.preventDefault();
     if (!selectedMed || !user) return;
     setLoading(true);
+
+    const routingDecision = classifyAndRouteRequest({
+      kind: "medication_availability",
+      urgency: urgency as "low" | "medium" | "high" | "critical",
+      description: `${selectedMed} ${notes}`,
+    });
+
     const { error } = await supabase.from("medication_requests").insert({
       user_id: user.id,
       medication_name: selectedMed,
@@ -69,6 +79,7 @@ const Medication = () => {
     });
     if (!error) {
       setSubmitted(true);
+      setRoutingModule(getRoutingModuleLabel(routingDecision.module));
       setSelectedMed("");
       setNotes("");
       fetchRequests();
@@ -138,6 +149,11 @@ const Medication = () => {
               >
                 {submitted ? t("med.submitted") : t("med.submit")}
               </button>
+              {routingModule && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {isAr ? `تم توجيه الطلب إلى: ${routingModule}` : `Routed to: ${routingModule}`}
+                </p>
+              )}
             </form>
 
             <h2 className="mb-4 font-heading text-lg font-semibold text-foreground">{t("med.yourRequests")}</h2>
