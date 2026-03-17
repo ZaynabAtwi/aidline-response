@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       case "get_medication_requests": {
         const { data } = await supabase
           .from("medication_requests")
-          .select("id, medication_name, urgency, status, created_at, notes")
+          .select("id, medication_name, urgency, status, created_at, notes, assistance_category, responder_type, triage_status")
           .order("created_at", { ascending: false })
           .limit(100);
         result = data;
@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
       case "get_sos_alerts": {
         const { data } = await supabase
           .from("sos_alerts")
-          .select("id, message, status, created_at")
+          .select("id, message, status, created_at, assistance_category, urgency, responder_type, triage_status")
           .order("created_at", { ascending: false })
           .limit(100);
         result = data;

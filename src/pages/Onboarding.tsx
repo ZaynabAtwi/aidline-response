@@ -8,24 +8,8 @@ import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Shield, ChevronLeft, ChevronRight } from "lucide-react";
 
-const districts = [
-  { ar: "بيروت", en: "Beirut" },
-  { ar: "طرابلس", en: "Tripoli" },
-  { ar: "صيدا", en: "Sidon" },
-  { ar: "صور", en: "Tyre" },
-  { ar: "بعلبك", en: "Baalbek" },
-  { ar: "زحلة", en: "Zahle" },
-  { ar: "جبيل", en: "Byblos" },
-  { ar: "جونية", en: "Jounieh" },
-  { ar: "النبطية", en: "Nabatieh" },
-  { ar: "عكار", en: "Akkar" },
-  { ar: "البقاع", en: "Bekaa" },
-  { ar: "جبل لبنان", en: "Mount Lebanon" },
-  { ar: "غير محدد", en: "Not specified" },
-];
-
 const Onboarding = () => {
-  const { t, lang } = useLanguage();
+  const { lang } = useLanguage();
   const { user, setOnboarded } = useAuth();
   const navigate = useNavigate();
 
@@ -33,7 +17,6 @@ const Onboarding = () => {
   const [needsShelter, setNeedsShelter] = useState(false);
   const [needsMedication, setNeedsMedication] = useState(false);
   const [isVolunteering, setIsVolunteering] = useState(false);
-  const [district, setDistrict] = useState("Not specified");
   const [urgency, setUrgency] = useState("low");
   const [saving, setSaving] = useState(false);
 
@@ -47,7 +30,6 @@ const Onboarding = () => {
       needs_shelter: needsShelter,
       needs_medication: needsMedication,
       is_volunteering: isVolunteering,
-      district,
       urgency,
     }, { onConflict: "user_id" });
 
@@ -96,7 +78,7 @@ const Onboarding = () => {
           {isAr ? "هل تبحث عن مأوى؟" : "Are you seeking shelter?"}
         </h2>
         <p className="mb-6 text-sm text-muted-foreground">
-          {isAr ? "سنساعدك في إيجاد أقرب ملجأ متاح" : "We'll help you find the nearest available shelter"}
+          {isAr ? "سننسق لك المأوى المناسب عبر شبكة الشركاء" : "We will coordinate shelter support through the partner network"}
         </p>
         <div className="flex justify-center gap-4">
           {[true, false].map((v) => (
@@ -167,33 +149,7 @@ const Onboarding = () => {
         </div>
       </div>
     ),
-    // Step 4: District
-    () => (
-      <div className="text-center">
-        <h2 className="mb-3 font-heading text-xl font-bold text-foreground">
-          {isAr ? "في أي منطقة أنت؟" : "Which district are you in?"}
-        </h2>
-        <p className="mb-6 text-sm text-muted-foreground">
-          {isAr ? "منطقة عامة فقط — لا نجمع موقعك الدقيق" : "General area only — we don't collect your exact location"}
-        </p>
-        <div className="mx-auto grid max-w-sm grid-cols-2 gap-2">
-          {districts.map((d) => (
-            <button
-              key={d.en}
-              onClick={() => setDistrict(d.en)}
-              className={`rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                district === d.en
-                  ? "bg-primary text-primary-foreground ring-2 ring-ring"
-                  : "bg-secondary text-secondary-foreground"
-              }`}
-            >
-              {isAr ? d.ar : d.en}
-            </button>
-          ))}
-        </div>
-      </div>
-    ),
-    // Step 5: Urgency
+    // Step 4: Urgency
     () => (
       <div className="text-center">
         <h2 className="mb-3 font-heading text-xl font-bold text-foreground">

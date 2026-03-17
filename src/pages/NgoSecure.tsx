@@ -22,8 +22,8 @@ const ngoApi = async (token: string, action: string, payload?: any) => {
 type Tab = "med_requests" | "sos" | "shelters" | "notes";
 
 interface Shelter { id: string; name: string; address: string | null; capacity: number; available_spots: number; is_operational: boolean; }
-interface MedReq { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; }
-interface SOSAlert { id: string; message: string | null; status: string; created_at: string; }
+interface MedReq { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; assistance_category?: string; responder_type?: string; triage_status?: string; }
+interface SOSAlert { id: string; message: string | null; status: string; created_at: string; assistance_category?: string; urgency?: string; responder_type?: string; triage_status?: string; }
 interface Note { id: string; content: string; created_at: string; }
 
 const urgencyColor: Record<string, string> = {
@@ -287,6 +287,23 @@ const NgoSecure = () => {
                       <Clock className="h-3 w-3" />
                       {new Date(a.created_at).toLocaleString()}
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {a.assistance_category && (
+                        <span className="rounded-full bg-[hsl(220,18%,16%)] px-2.5 py-0.5 text-[10px] font-medium text-[hsl(215,15%,55%)]">
+                          {isAr ? "الفئة" : "Category"}: {a.assistance_category}
+                        </span>
+                      )}
+                      {a.urgency && (
+                        <span className="rounded-full bg-[hsl(220,18%,16%)] px-2.5 py-0.5 text-[10px] font-medium text-[hsl(215,15%,55%)]">
+                          {isAr ? "الأولوية" : "Priority"}: {a.urgency}
+                        </span>
+                      )}
+                      {a.triage_status && (
+                        <span className="rounded-full bg-[hsl(220,18%,16%)] px-2.5 py-0.5 text-[10px] font-medium text-[hsl(215,15%,55%)]">
+                          {isAr ? "المسار" : "Route"}: {a.triage_status}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${sosColor[a.status] || ""}`}>
                     {a.status}
@@ -323,6 +340,23 @@ const NgoSecure = () => {
                     <h3 className="font-heading text-sm font-semibold text-[hsl(210,20%,92%)]">{r.medication_name}</h3>
                     <p className="mt-0.5 text-xs text-[hsl(215,15%,45%)]">{new Date(r.created_at).toLocaleString()}</p>
                     {r.notes && <p className="mt-1 text-xs text-[hsl(215,15%,55%)]">{r.notes}</p>}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {r.assistance_category && (
+                        <span className="rounded-full bg-[hsl(220,18%,16%)] px-2.5 py-0.5 text-[10px] font-medium text-[hsl(215,15%,55%)]">
+                          {isAr ? "الفئة" : "Category"}: {r.assistance_category}
+                        </span>
+                      )}
+                      {r.responder_type && (
+                        <span className="rounded-full bg-[hsl(220,18%,16%)] px-2.5 py-0.5 text-[10px] font-medium text-[hsl(215,15%,55%)]">
+                          {isAr ? "الجهة" : "Responder"}: {r.responder_type}
+                        </span>
+                      )}
+                      {r.triage_status && (
+                        <span className="rounded-full bg-[hsl(220,18%,16%)] px-2.5 py-0.5 text-[10px] font-medium text-[hsl(215,15%,55%)]">
+                          {isAr ? "المسار" : "Route"}: {r.triage_status}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColor[r.urgency] || ""}`}>
                     {r.urgency}

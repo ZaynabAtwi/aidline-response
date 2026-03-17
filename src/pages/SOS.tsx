@@ -1,17 +1,17 @@
 import { useState } from "react";
-import { AlertTriangle, MapPin, Send, Phone as PhoneIcon } from "lucide-react";
+import { AlertTriangle, Send, Phone as PhoneIcon } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { useGeolocation } from "@/hooks/useGeolocation";
 import { supabase } from "@/integrations/supabase/client";
 import EmergencyNumbers from "@/components/EmergencyNumbers";
 
 const SOS = () => {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
-  const { position, requestLocation } = useGeolocation();
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
+  const [assistanceType, setAssistanceType] = useState<"medical_emergency" | "humanitarian_aid" | "general_inquiry">("medical_emergency");
+  const [urgency, setUrgency] = useState<"high" | "critical">("critical");
   const [sending, setSending] = useState(false);
   const [showNumbers, setShowNumbers] = useState(false);
   const isAr = lang === "ar";
@@ -19,19 +19,16 @@ const SOS = () => {
   const handleSOS = async () => {
     if (!user) return;
     setSending(true);
-    requestLocation();
+    const structuredMessage = [
+      `[type:${assistanceType}] [urgency:${urgency}]`,
+      message.trim() || (isAr ? "طلب SOS بدون تفاصيل إضافية" : "SOS request with no additional details"),
+    ].join("\n");
 
-    const insertData: any = {
+    const { error } = await supabase.from("sos_alerts").insert({
       user_id: user.id,
-      message: message || null,
+      message: structuredMessage,
       status: "active" as const,
-    };
-
-    if (position) {
-      insertData.location = `POINT(${position.longitude} ${position.latitude})`;
-    }
-
-    const { error } = await supabase.from("sos_alerts").insert(insertData);
+    });
     if (!error) setSent(true);
     setSending(false);
   };
@@ -70,6 +67,53 @@ const SOS = () => {
             <p className="mb-8 text-muted-foreground">{t("sos.subtitle")}</p>
 
             <div className="mb-6">
+              <label className="mb-2 block text-start text-sm text-muted-foreground">
+                {isAr ? "نوع المساعدة" : "Assistance Type"}
+              </label>
+              <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {[
+                  { value: "medical_emergency", ar: "طوارئ طبية", en: "Medical Emergency" },
+                  { value: "humanitarian_aid", ar: "مساعدة إنسانية", en: "Humanitarian Aid" },
+                  { value: "general_inquiry", ar: "طلب عام", en: "General Inquiry" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setAssistanceType(option.value as typeof assistanceType)}
+                    className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                      assistanceType === option.value
+                        ? "bg-destructive/15 text-destructive ring-2 ring-destructive/40"
+                        : "bg-secondary text-secondary-foreground"
+                    }`}
+                  >
+                    {isAr ? option.ar : option.en}
+                  </button>
+                ))}
+              </div>
+
+              <label className="mb-2 block text-start text-sm text-muted-foreground">
+                {isAr ? "درجة الأولوية" : "Priority"}
+              </label>
+              <div className="mb-4 flex gap-2">
+                {[
+                  { value: "high", ar: "مرتفعة", en: "High" },
+                  { value: "critical", ar: "حرجة", en: "Critical" },
+                ].map((level) => (
+                  <button
+                    key={level.value}
+                    type="button"
+                    onClick={() => setUrgency(level.value as typeof urgency)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+                      urgency === level.value
+                        ? "bg-destructive/15 text-destructive ring-2 ring-destructive/40"
+                        : "bg-secondary text-secondary-foreground"
+                    }`}
+                  >
+                    {isAr ? level.ar : level.en}
+                  </button>
+                ))}
+              </div>
+
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -80,7 +124,6 @@ const SOS = () => {
             </div>
 
             <div className="mb-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" />
               <span>{t("sos.locationAuto")}</span>
             </div>
 
