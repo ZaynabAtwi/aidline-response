@@ -11,7 +11,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { token, action, payload } = await req.json();
+    const {
+      token,
+      action,
+      payload,
+    }: { token?: string; action?: string; payload?: Record<string, unknown> } = await req.json();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -29,7 +33,7 @@ Deno.serve(async (req) => {
     // Update last_used_at (minimal metadata)
     await supabase.from("ngo_access_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenId);
 
-    let result: any = null;
+    let result: unknown = null;
 
     switch (action) {
       case "get_medication_requests": {
@@ -59,7 +63,7 @@ Deno.serve(async (req) => {
         break;
       }
       case "update_shelter": {
-        const { id, capacity, available_spots, is_operational } = payload;
+        const { id, capacity, available_spots, is_operational } = payload ?? {};
         const { error } = await supabase
           .from("shelters")
           .update({ capacity, available_spots, is_operational })
@@ -68,15 +72,15 @@ Deno.serve(async (req) => {
         break;
       }
       case "update_sos_status": {
-        const { id, status } = payload;
-        const update: any = { status };
+        const { id, status } = payload ?? {};
+        const update: Record<string, unknown> = { status };
         if (status === "resolved") update.resolved_at = new Date().toISOString();
         const { error } = await supabase.from("sos_alerts").update(update).eq("id", id);
         result = { success: !error };
         break;
       }
       case "update_med_status": {
-        const { id, status } = payload;
+        const { id, status } = payload ?? {};
         const { error } = await supabase.from("medication_requests").update({ status }).eq("id", id);
         result = { success: !error };
         break;
@@ -91,7 +95,7 @@ Deno.serve(async (req) => {
         break;
       }
       case "add_note": {
-        const { content } = payload;
+        const { content } = payload ?? {};
         const { data, error } = await supabase
           .from("coordination_notes")
           .insert({ content, author_token_id: tokenId })
@@ -110,7 +114,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ data: result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
+  } catch {
     return new Response(JSON.stringify({ error: "Server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

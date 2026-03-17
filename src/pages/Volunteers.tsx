@@ -3,6 +3,7 @@ import { Users, CheckCircle, Clock, Star, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
 
 const skillOptions = [
@@ -11,21 +12,19 @@ const skillOptions = [
   "Teaching", "First Aid", "Cooking", "Legal Aid",
 ];
 
-interface Volunteer {
-  id: string;
-  user_id: string;
-  skills: string[];
-  status: string;
-  rating: number | null;
-  bio: string | null;
-  profiles?: { full_name: string | null } | null;
-}
+type Volunteer = Database["public"]["Tables"]["volunteers"]["Row"];
 
-const statusConfig: Record<string, { color: string; icon: typeof CheckCircle }> = {
+const statusConfig: Record<Database["public"]["Enums"]["volunteer_status"], { color: string; icon: typeof CheckCircle }> = {
   available: { color: "text-success", icon: CheckCircle },
   assigned: { color: "text-accent", icon: Clock },
   unavailable: { color: "text-destructive", icon: Clock },
 };
+
+const volunteerStatusLabels = {
+  available: "vol.available",
+  assigned: "vol.assigned",
+  unavailable: "vol.unavailable",
+} as const;
 
 const Volunteers = () => {
   const { t } = useLanguage();
@@ -169,7 +168,7 @@ const Volunteers = () => {
             {volunteers.map((v) => {
               const config = statusConfig[v.status] || statusConfig.available;
               const StatusIcon = config.icon;
-              const statusLabel = t(`vol.${v.status}` as any) || v.status;
+              const statusLabel = t(volunteerStatusLabels[v.status]);
               return (
                 <div key={v.id} className="rounded-xl border border-border bg-card p-5">
                   <div className="flex items-start justify-between">

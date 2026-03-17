@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import logo from "@/assets/logo.png";
 import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -34,10 +35,10 @@ const Onboarding = () => {
     }, { onConflict: "user_id" });
 
     // Assign role based on volunteering choice
-    const role = isVolunteering ? "volunteer" : "displaced_user";
+    const role: Database["public"]["Enums"]["app_role"] = isVolunteering ? "volunteer" : "displaced_user";
     await supabase.from("user_roles").upsert({
       user_id: user.id,
-      role: role as any,
+      role,
     }, { onConflict: "user_id" });
 
     setOnboarded(true);

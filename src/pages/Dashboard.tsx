@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Building2, Pill, AlertTriangle, Users, ClipboardList, Save, X, Edit2, UserCheck, MessageCircle, Send, Workflow } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { Link, Navigate } from "react-router-dom";
 
 type Tab = "shelters" | "medication" | "sos" | "volunteers" | "requests" | "messages";
@@ -12,6 +13,10 @@ interface Shelter { id: string; name: string; address: string | null; capacity: 
 interface MedRequest { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; user_id: string; }
 interface SOSAlert { id: string; message: string | null; status: string; created_at: string; user_id: string; responded_by: string | null; }
 interface Volunteer { id: string; user_id: string; skills: string[]; status: string; rating: number | null; bio: string | null; }
+type RequestStatus = Database["public"]["Enums"]["request_status"];
+type SosStatus = Database["public"]["Enums"]["sos_status"];
+type VolunteerStatus = Database["public"]["Enums"]["volunteer_status"];
+type ChatStatus = Database["public"]["Enums"]["chat_status"];
 
 const Dashboard = () => {
   const { t, lang } = useLanguage();
@@ -19,14 +24,15 @@ const Dashboard = () => {
   const [tab, setTab] = useState<Tab>("shelters");
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    if (user) checkRole();
+  const checkRole = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "ngo_admin");
+    setIsAdmin(data && data.length > 0);
   }, [user]);
 
-  const checkRole = async () => {
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", user!.id).eq("role", "ngo_admin");
-    setIsAdmin(data && data.length > 0);
-  };
+  useEffect(() => {
+    if (user) checkRole();
+  }, [user, checkRole]);
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">{t("common.loading")}</div>;
   if (!user) return <Navigate to="/onboarding" />;
@@ -203,8 +209,8 @@ const MedRequestList = ({ lang }: { lang: string }) => {
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, status: string) => {
-    await supabase.from("medication_requests").update({ status: status as any }).eq("id", id);
+  const updateStatus = async (id: string, status: RequestStatus) => {
+    await supabase.from("medication_requests").update({ status }).eq("id", id);
     fetchAll();
   };
 
@@ -358,8 +364,8 @@ const SOSAlertPanel = ({ lang }: { lang: string }) => {
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, status: string) => {
-    const update: any = { status };
+  const updateStatus = async (id: string, status: SosStatus) => {
+    const update: Database["public"]["Tables"]["sos_alerts"]["Update"] = { status };
     if (status === "resolved") update.resolved_at = new Date().toISOString();
     await supabase.from("sos_alerts").update(update).eq("id", id);
     fetchAlerts();
@@ -416,8 +422,8 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, status: string) => {
-    await supabase.from("volunteers").update({ status: status as any }).eq("id", id);
+  const updateStatus = async (id: string, status: VolunteerStatus) => {
+    await supabase.from("volunteers").update({ status }).eq("id", id);
     fetchV();
   };
 
@@ -468,23 +474,10 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
 // ══════════════════════════════════════════
 // 6. CHAT MESSAGES PANEL (NGO)
 // ══════════════════════════════════════════
-interface ChatConversation {
-  id: string;
-  user_id: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
+type ChatConversation = Database["public"]["Tables"]["chat_conversations"]["Row"];
+type ChatMessage = Database["public"]["Tables"]["chat_messages"]["Row"];
 
-interface ChatMessage {
-  id: string;
-  sender: string;
-  message: string;
-  is_read: boolean;
-  created_at: string;
-}
-
-const chatStatusColors: Record<string, string> = {
+const chatStatusColors: Record<ChatStatus, string> = {
   open: "bg-success/15 text-success",
   in_progress: "bg-accent/15 text-accent",
   closed: "bg-muted text-muted-foreground",
@@ -502,25 +495,25 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
 
   const fetchConversations = async () => {
     setLoading(true);
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from("chat_conversations")
       .select("*")
       .order("updated_at", { ascending: false });
-    if (data) setConversations(data as ChatConversation[]);
+    if (data) setConversations(data);
     setLoading(false);
   };
 
   const selectConversation = async (convId: string) => {
     setSelectedConv(convId);
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from("chat_messages")
       .select("*")
       .eq("conversation_id", convId)
       .order("created_at", { ascending: true });
-    if (data) setMessages(data as ChatMessage[]);
+    if (data) setMessages(data);
 
     // Mark all user messages as read
-    await (supabase as any)
+    await supabase
       .from("chat_messages")
       .update({ is_read: true })
       .eq("conversation_id", convId)
@@ -528,20 +521,20 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
       .eq("is_read", false);
   };
 
-  const updateConvStatus = async (convId: string, status: string) => {
-    await (supabase as any).from("chat_conversations").update({ status, updated_at: new Date().toISOString() }).eq("id", convId);
+  const updateConvStatus = async (convId: string, status: ChatStatus) => {
+    await supabase.from("chat_conversations").update({ status, updated_at: new Date().toISOString() }).eq("id", convId);
     fetchConversations();
   };
 
   const sendReply = async () => {
     if (!reply.trim() || !selectedConv || sending) return;
     setSending(true);
-    await (supabase as any).from("chat_messages").insert({
+    await supabase.from("chat_messages").insert({
       conversation_id: selectedConv,
       sender: "ngo",
       message: reply.trim(),
     });
-    await (supabase as any).from("chat_conversations").update({ updated_at: new Date().toISOString() }).eq("id", selectedConv);
+    await supabase.from("chat_conversations").update({ updated_at: new Date().toISOString() }).eq("id", selectedConv);
     setReply("");
     await selectConversation(selectedConv);
     setSending(false);

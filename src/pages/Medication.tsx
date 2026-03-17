@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Pill, Clock, CheckCircle, AlertTriangle, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { getRoutingSummary } from "@/lib/request-routing";
 
 
@@ -35,29 +36,32 @@ interface MedRequest {
   notes: string | null;
 }
 
+type UrgencyLevel = Database["public"]["Enums"]["urgency_level"];
+
 const Medication = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
   const [selectedMed, setSelectedMed] = useState("");
-  const [urgency, setUrgency] = useState("medium");
+  const [urgency, setUrgency] = useState<UrgencyLevel>("medium");
   const [notes, setNotes] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [requests, setRequests] = useState<MedRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const routing = getRoutingSummary("medication_need");
 
-  useEffect(() => {
-    if (user) fetchRequests();
-  }, [user]);
-
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
+    if (!user) return;
     const { data } = await supabase
       .from("medication_requests")
       .select("*")
-      .eq("user_id", user!.id)
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     if (data) setRequests(data as MedRequest[]);
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) fetchRequests();
+  }, [user, fetchRequests]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +70,7 @@ const Medication = () => {
     const { error } = await supabase.from("medication_requests").insert({
       user_id: user.id,
       medication_name: selectedMed,
-      urgency: urgency as any,
+      urgency,
       notes: notes || null,
     });
     if (!error) {
