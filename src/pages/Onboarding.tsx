@@ -36,7 +36,7 @@ const Onboarding = () => {
     if (isVolunteering) {
       await supabase.from("user_roles").upsert({
         user_id: user.id,
-        role: "volunteer" as any,
+        role: "volunteer",
       }, { onConflict: "user_id,role" });
     }
 

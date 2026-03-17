@@ -27,6 +27,12 @@ const statusConfig: Record<string, { color: string; icon: typeof CheckCircle }> 
   unavailable: { color: "text-destructive", icon: Clock },
 };
 
+const statusTranslationKey = {
+  available: "vol.available",
+  assigned: "vol.assigned",
+  unavailable: "vol.unavailable",
+} as const;
+
 const Volunteers = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
@@ -162,7 +168,7 @@ const Volunteers = () => {
             {volunteers.map((v) => {
               const config = statusConfig[v.status] || statusConfig.available;
               const StatusIcon = config.icon;
-              const statusLabel = t(`vol.${v.status}` as any) || v.status;
+              const statusLabel = t(statusTranslationKey[v.status as keyof typeof statusTranslationKey] ?? "vol.available");
               return (
                 <div key={v.id} className="rounded-xl border border-border bg-card p-5">
                   <div className="flex items-start justify-between">
