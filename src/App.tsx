@@ -13,6 +13,7 @@ import Medication from "./pages/Medication";
 import Volunteers from "./pages/Volunteers";
 import SOS from "./pages/SOS";
 import Chat from "./pages/Chat";
+import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import NgoSecure from "./pages/NgoSecure";
@@ -21,7 +22,7 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const AppRoutes = () => {
-  const { loading, isOnboarded } = useAuth();
+  const { loading, isOnboarded, user } = useAuth();
 
   if (loading) {
     return (
@@ -32,9 +33,19 @@ const AppRoutes = () => {
   }
 
   if (!isOnboarded) {
+    if (!user) {
+      return (
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      );
+    }
+
     return (
       <Routes>
         <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/login" element={<Navigate to="/onboarding" replace />} />
         <Route path="*" element={<Navigate to="/onboarding" replace />} />
       </Routes>
     );
@@ -55,6 +66,7 @@ const AppRoutes = () => {
               <Route path="/sos" element={<SOS />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/login" element={<Navigate to="/" replace />} />
               <Route path="/onboarding" element={<Navigate to="/" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

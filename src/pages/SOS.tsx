@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AlertTriangle, Send, Phone as PhoneIcon } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { sosApi } from "@/lib/api/client";
+import { api } from "@/integrations/mysql/client";
 import EmergencyNumbers from "@/components/EmergencyNumbers";
 
 const SOS = () => {
@@ -18,7 +18,7 @@ const SOS = () => {
     if (!user) return;
     setSending(true);
     try {
-      await sosApi.send(message || undefined);
+      await api.sos.send({ user_id: user.id, message: message || undefined });
       setSent(true);
     } catch {
       // Silently handled — alert was still logged

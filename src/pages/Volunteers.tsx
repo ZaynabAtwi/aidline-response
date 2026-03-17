@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { Users, CheckCircle, Clock, Star } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { volunteersApi } from "@/lib/api/client";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/integrations/mysql/client";
 
 const skillOptions = [
   "Medical", "Translation", "Logistics", "Driving", "Construction",
@@ -46,22 +45,17 @@ const Volunteers = () => {
 
   const fetchVolunteers = async () => {
     try {
-      const res = await volunteersApi.list();
-      if (res.success && res.data) {
-        const volunteers = res.data.map((v: any) => ({
-          ...v,
-          skills: typeof v.skills === "string" ? JSON.parse(v.skills) : v.skills,
-        }));
-        setVolunteers(volunteers);
-        setLoading(false);
-        return;
-      }
+      const rows = await api.volunteers.getAll();
+      const normalized = rows.map((v: any) => ({
+        ...v,
+        skills: typeof v.skills === "string" ? JSON.parse(v.skills) : v.skills,
+      }));
+      setVolunteers(normalized);
     } catch {
-      // fallback to Supabase
+      setVolunteers([]);
+    } finally {
+      setLoading(false);
     }
-    const { data } = await supabase.from("volunteers").select("*").order("rating", { ascending: false });
-    if (data) setVolunteers(data as Volunteer[]);
-    setLoading(false);
   };
 
   const toggleSkill = (skill: string) => {
@@ -75,29 +69,13 @@ const Volunteers = () => {
     if (!user || selectedSkills.length === 0) return;
     setSubmitting(true);
     try {
-      const res = await volunteersApi.register({ skills: selectedSkills, bio: bio || undefined });
-      if (res.success) {
-        setRegistered(true);
-        setShowRegister(false);
-        fetchVolunteers();
-        setTimeout(() => setRegistered(false), 3000);
-        setSubmitting(false);
-        return;
-      }
-    } catch {
-      // fallback to Supabase
-    }
-    const { error } = await supabase.from("volunteers").insert({
-      user_id: user.id,
-      skills: selectedSkills,
-      bio: bio || null,
-      status: "available" as const,
-    });
-    if (!error) {
+      await api.volunteers.register({ user_id: user.id, skills: selectedSkills, bio: bio || undefined });
       setRegistered(true);
       setShowRegister(false);
       fetchVolunteers();
       setTimeout(() => setRegistered(false), 3000);
+    } catch {
+      // Keep form open when registration fails
     }
     setSubmitting(false);
   };
