@@ -1,15 +1,15 @@
 import { useState } from "react";
-import { AlertTriangle, MapPin, Send, Phone as PhoneIcon } from "lucide-react";
+import { AlertTriangle, Send, Phone as PhoneIcon } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { useGeolocation } from "@/hooks/useGeolocation";
 import { supabase } from "@/integrations/supabase/client";
+import { api, useMysqlApi } from "@/lib/api";
 import EmergencyNumbers from "@/components/EmergencyNumbers";
 
 const SOS = () => {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
-  const { position, requestLocation } = useGeolocation();
+  const useApi = useMysqlApi();
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -19,20 +19,27 @@ const SOS = () => {
   const handleSOS = async () => {
     if (!user) return;
     setSending(true);
-    requestLocation();
 
-    const insertData: any = {
-      user_id: user.id,
-      message: message || null,
-      status: "active" as const,
-    };
-
-    if (position) {
-      insertData.location = `POINT(${position.longitude} ${position.latitude})`;
+    try {
+      if (useApi) {
+        await api.sos.create({ user_id: user.id, message: message || undefined });
+      } else {
+        await supabase.from("sos_alerts").insert({
+          user_id: user.id,
+          message: message || null,
+          status: "active",
+        });
+      }
+      setSent(true);
+    } catch {
+      // Fallback to Supabase if API fails
+      const { error } = await supabase.from("sos_alerts").insert({
+        user_id: user.id,
+        message: message || null,
+        status: "active",
+      });
+      if (!error) setSent(true);
     }
-
-    const { error } = await supabase.from("sos_alerts").insert(insertData);
-    if (!error) setSent(true);
     setSending(false);
   };
 
@@ -79,10 +86,9 @@ const SOS = () => {
               />
             </div>
 
-            <div className="mb-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" />
-              <span>{t("sos.locationAuto")}</span>
-            </div>
+            <p className="mb-4 text-center text-sm text-muted-foreground">
+              {t("sos.noLocation")}
+            </p>
 
             <button
               onClick={handleSOS}
