@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { MessageCircle, Send, AlertTriangle, RefreshCw, Check, Eye } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { chatApi } from "@/lib/api/client";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 
@@ -27,6 +28,7 @@ const Chat = () => {
   const [sending, setSending] = useState(false);
   const [lastSentAt, setLastSentAt] = useState(0);
   const [cooldown, setCooldown] = useState(0);
+  const [useBackend, setUseBackend] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,6 +47,20 @@ const Chat = () => {
 
   const loadConversation = async () => {
     setLoading(true);
+    try {
+      const res = await chatApi.createConversation();
+      if (res.success && res.data?.id) {
+        setConversationId(res.data.id);
+        setUseBackend(true);
+        await fetchMessages(res.data.id, true);
+        setLoading(false);
+        return;
+      }
+    } catch {
+      setUseBackend(false);
+    }
+
+    // Fallback: Supabase
     const { data: convos } = await (supabase as any)
       .from("chat_conversations")
       .select("id")
@@ -61,15 +77,22 @@ const Chat = () => {
         .single();
       convId = newConv?.id;
     }
-
     if (convId) {
       setConversationId(convId);
-      await fetchMessages(convId);
+      await fetchMessages(convId, false);
     }
     setLoading(false);
   };
 
-  const fetchMessages = async (convId: string) => {
+  const fetchMessages = async (convId: string, backend: boolean) => {
+    if (backend) {
+      try {
+        const res = await chatApi.getMessages(convId);
+        if (res.success) { setMessages(res.data); return; }
+      } catch {
+        // fall through
+      }
+    }
     const { data } = await (supabase as any)
       .from("chat_messages")
       .select("*")
@@ -89,22 +112,35 @@ const Chat = () => {
     }
 
     setSending(true);
+    if (useBackend) {
+      try {
+        const res = await chatApi.sendMessage(conversationId, input.trim());
+        if (res.success) {
+          setInput("");
+          setLastSentAt(Date.now());
+          await fetchMessages(conversationId, true);
+          setSending(false);
+          return;
+        }
+      } catch {
+        // fall through to Supabase
+      }
+    }
     const { error } = await (supabase as any).from("chat_messages").insert({
       conversation_id: conversationId,
       sender: "user",
       message: input.trim(),
     });
-
     if (!error) {
       setInput("");
       setLastSentAt(Date.now());
-      await fetchMessages(conversationId);
+      await fetchMessages(conversationId, false);
     }
     setSending(false);
   };
 
   const handleRefresh = () => {
-    if (conversationId) fetchMessages(conversationId);
+    if (conversationId) fetchMessages(conversationId, useBackend);
   };
 
   const getStatusIcon = (msg: Message) => {
@@ -158,6 +194,13 @@ const Chat = () => {
               {isAr ? "أرقام الطوارئ →" : "Emergency Numbers →"}
             </Link>
           </div>
+        </div>
+
+        {/* Secure channel notice */}
+        <div className="mb-4 rounded-lg border border-border bg-secondary/30 px-4 py-2 text-xs text-muted-foreground">
+          {isAr
+            ? "🔒 جلسة محمية — لا يتم مشاركة بيانات هويتك مع جهات خارجية."
+            : "🔒 Secure session — your identity is not shared with external parties."}
         </div>
 
         {/* Messages Area */}

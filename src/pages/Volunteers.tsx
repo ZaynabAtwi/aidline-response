@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
-import { Users, MapPin, CheckCircle, Clock, Star } from "lucide-react";
+import { Users, CheckCircle, Clock, Star } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { volunteersApi } from "@/lib/api/client";
 import { supabase } from "@/integrations/supabase/client";
-import { useGeolocation } from "@/hooks/useGeolocation";
-
 
 const skillOptions = [
   "Medical", "Translation", "Logistics", "Driving", "Construction",
@@ -19,19 +18,20 @@ interface Volunteer {
   status: string;
   rating: number | null;
   bio: string | null;
+  full_name?: string | null;
   profiles?: { full_name: string | null } | null;
 }
 
 const statusConfig: Record<string, { color: string; icon: typeof CheckCircle }> = {
-  available: { color: "text-success", icon: CheckCircle },
-  assigned: { color: "text-accent", icon: Clock },
+  available:   { color: "text-success",     icon: CheckCircle },
+  assigned:    { color: "text-accent",      icon: Clock },
   unavailable: { color: "text-destructive", icon: Clock },
 };
 
 const Volunteers = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { user } = useAuth();
-  const { position, requestLocation } = useGeolocation();
+  const isAr = lang === "ar";
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRegister, setShowRegister] = useState(false);
@@ -45,6 +45,20 @@ const Volunteers = () => {
   }, []);
 
   const fetchVolunteers = async () => {
+    try {
+      const res = await volunteersApi.list();
+      if (res.success && res.data) {
+        const volunteers = res.data.map((v: any) => ({
+          ...v,
+          skills: typeof v.skills === "string" ? JSON.parse(v.skills) : v.skills,
+        }));
+        setVolunteers(volunteers);
+        setLoading(false);
+        return;
+      }
+    } catch {
+      // fallback to Supabase
+    }
     const { data } = await supabase.from("volunteers").select("*").order("rating", { ascending: false });
     if (data) setVolunteers(data as Volunteer[]);
     setLoading(false);
@@ -60,21 +74,25 @@ const Volunteers = () => {
     e.preventDefault();
     if (!user || selectedSkills.length === 0) return;
     setSubmitting(true);
-
-    requestLocation();
-
-    const insertData: any = {
+    try {
+      const res = await volunteersApi.register({ skills: selectedSkills, bio: bio || undefined });
+      if (res.success) {
+        setRegistered(true);
+        setShowRegister(false);
+        fetchVolunteers();
+        setTimeout(() => setRegistered(false), 3000);
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      // fallback to Supabase
+    }
+    const { error } = await supabase.from("volunteers").insert({
       user_id: user.id,
       skills: selectedSkills,
       bio: bio || null,
       status: "available" as const,
-    };
-
-    if (position) {
-      insertData.location = `POINT(${position.longitude} ${position.latitude})`;
-    }
-
-    const { error } = await supabase.from("volunteers").insert(insertData);
+    });
     if (!error) {
       setRegistered(true);
       setShowRegister(false);
@@ -134,6 +152,12 @@ const Volunteers = () => {
               </div>
             </div>
 
+            <div className="mb-4 rounded-lg border border-border bg-secondary/30 px-4 py-3 text-xs text-muted-foreground">
+              {isAr
+                ? "ستتم مطابقتك مع الطلبات بناءً على مهاراتك وتوفرك، دون الحاجة إلى بيانات موقعك."
+                : "You will be matched with requests based on your skills and availability, without requiring location data."}
+            </div>
+
             <div className="mb-6">
               <label className="mb-2 block text-sm text-muted-foreground">{t("vol.bio")}</label>
               <textarea
@@ -179,7 +203,7 @@ const Volunteers = () => {
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-heading text-lg font-semibold text-foreground">
-                          {v.bio ? v.bio.slice(0, 30) : `Volunteer`}
+                          {v.full_name || (v.bio ? v.bio.slice(0, 30) : "Volunteer")}
                         </h3>
                         <StatusIcon className={`h-4 w-4 ${config.color}`} />
                         <span className={`text-xs capitalize ${config.color}`}>{statusLabel}</span>
@@ -192,7 +216,7 @@ const Volunteers = () => {
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {v.skills.map((s) => (
+                    {(Array.isArray(v.skills) ? v.skills : []).map((s) => (
                       <span key={s} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                         {s}
                       </span>

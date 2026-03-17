@@ -1,22 +1,28 @@
 import { useState, useEffect } from "react";
-import { Building2, Pill, AlertTriangle, Users, ClipboardList, Save, X, Edit2, UserCheck, MessageCircle, Send, Eye } from "lucide-react";
+import {
+  Building2, Pill, AlertTriangle, Users, ClipboardList,
+  Save, X, Edit2, UserCheck, MessageCircle, Send, BarChart2,
+} from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  analyticsApi, medicationApi, sosApi, volunteersApi, chatApi,
+  providersApi,
+} from "@/lib/api/client";
 import { Link, Navigate } from "react-router-dom";
 
-type Tab = "shelters" | "medication" | "sos" | "volunteers" | "requests" | "messages";
+type Tab = "providers" | "medication" | "sos" | "volunteers" | "messages" | "analytics";
 
-// ── Types ──
-interface Shelter { id: string; name: string; address: string | null; capacity: number; available_spots: number; is_operational: boolean; ngo: string | null; }
-interface MedRequest { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; user_id: string; }
-interface SOSAlert { id: string; message: string | null; status: string; created_at: string; user_id: string; responded_by: string | null; }
-interface Volunteer { id: string; user_id: string; skills: string[]; status: string; rating: number | null; bio: string | null; }
+interface MedRequest  { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; user_id: string; }
+interface SOSAlert    { id: string; message: string | null; status: string; created_at: string; user_id: string; responded_by: string | null; }
+interface Volunteer   { id: string; user_id: string; skills: string[]; status: string; rating: number | null; bio: string | null; }
+interface Provider    { id: string; name: string; type: string; contact_email: string | null; contact_phone: string | null; is_active: boolean; services: string[] | null; operating_hours: string | null; }
 
 const Dashboard = () => {
   const { t, lang } = useLanguage();
   const { user, loading: authLoading } = useAuth();
-  const [tab, setTab] = useState<Tab>("shelters");
+  const [tab, setTab] = useState<Tab>("providers");
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -41,12 +47,12 @@ const Dashboard = () => {
   );
 
   const tabs: { id: Tab; label: string; icon: typeof Building2 }[] = [
-    { id: "shelters", label: lang === "ar" ? "الملاجئ" : "Shelters", icon: Building2 },
-    { id: "requests", label: lang === "ar" ? "طلبات الأدوية" : "Med Requests", icon: ClipboardList },
-    { id: "medication", label: lang === "ar" ? "المخزون" : "Inventory", icon: Pill },
-    { id: "sos", label: lang === "ar" ? "تنبيهات SOS" : "SOS Alerts", icon: AlertTriangle },
-    { id: "volunteers", label: lang === "ar" ? "المتطوعون" : "Volunteers", icon: Users },
-    { id: "messages", label: lang === "ar" ? "الرسائل الواردة" : "Messages", icon: MessageCircle },
+    { id: "providers",  label: lang === "ar" ? "مزودو الخدمة" : "Providers",    icon: Building2 },
+    { id: "medication", label: lang === "ar" ? "طلبات الدواء" : "Med Requests",  icon: Pill },
+    { id: "sos",        label: lang === "ar" ? "تنبيهات SOS" : "SOS Alerts",     icon: AlertTriangle },
+    { id: "volunteers", label: lang === "ar" ? "المتطوعون" : "Volunteers",        icon: Users },
+    { id: "messages",   label: lang === "ar" ? "الرسائل" : "Messages",            icon: MessageCircle },
+    { id: "analytics",  label: lang === "ar" ? "التحليلات" : "Analytics",         icon: BarChart2 },
   ];
 
   return (
@@ -56,7 +62,6 @@ const Dashboard = () => {
           {lang === "ar" ? "لوحة تحكم المنظمة" : "NGO Admin Dashboard"}
         </h1>
 
-        {/* Tab Navigation */}
         <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1">
           {tabs.map((t) => (
             <button
@@ -72,101 +77,75 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Tab Content */}
-        {tab === "shelters" && <ShelterManager lang={lang} />}
-        {tab === "requests" && <MedRequestList lang={lang} />}
-        {tab === "medication" && <MedicationInventory lang={lang} />}
-        {tab === "sos" && <SOSAlertPanel lang={lang} />}
+        {tab === "providers"  && <ProviderPanel lang={lang} />}
+        {tab === "medication" && <MedRequestList lang={lang} />}
+        {tab === "sos"        && <SOSAlertPanel lang={lang} />}
         {tab === "volunteers" && <VolunteerAssignment lang={lang} />}
-        {tab === "messages" && <ChatMessagesPanel lang={lang} />}
+        {tab === "messages"   && <ChatMessagesPanel lang={lang} />}
+        {tab === "analytics"  && <AnalyticsPanel lang={lang} />}
       </div>
     </div>
   );
 };
 
 // ══════════════════════════════════════════
-// 1. SHELTER CAPACITY MANAGER
+// 1. PROVIDER PANEL (replaces Shelter Manager)
 // ══════════════════════════════════════════
-const ShelterManager = ({ lang }: { lang: string }) => {
-  const [shelters, setShelters] = useState<Shelter[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState({ capacity: 0, available_spots: 0, is_operational: true });
+const ProviderPanel = ({ lang }: { lang: string }) => {
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [loading, setLoading]     = useState(true);
 
-  useEffect(() => { fetch(); }, []);
+  useEffect(() => { load(); }, []);
 
-  const fetch = async () => {
-    const { data } = await supabase.from("shelters").select("*").order("name");
-    if (data) setShelters(data);
+  const load = async () => {
+    try {
+      const res = await providersApi.list({ pageSize: 100 });
+      if (res.success && res.data?.items) {
+        setProviders(res.data.items.map((p: any) => ({
+          ...p,
+          services: typeof p.services === "string" ? JSON.parse(p.services) : p.services,
+        })));
+        setLoading(false);
+        return;
+      }
+    } catch { /* fallback */ }
     setLoading(false);
-  };
-
-  const startEdit = (s: Shelter) => {
-    setEditing(s.id);
-    setEditValues({ capacity: s.capacity, available_spots: s.available_spots, is_operational: s.is_operational });
-  };
-
-  const saveEdit = async (id: string) => {
-    await supabase.from("shelters").update(editValues).eq("id", id);
-    setEditing(null);
-    fetch();
   };
 
   if (loading) return <LoadingState />;
 
+  const typeColors: Record<string, string> = {
+    healthcare: "bg-accent/15 text-accent",
+    pharmacy:   "bg-primary/15 text-primary",
+    ngo:        "bg-success/15 text-success",
+    government: "bg-muted text-muted-foreground",
+  };
+
   return (
     <div className="space-y-3">
-      {shelters.length === 0 && <EmptyState text={lang === "ar" ? "لا توجد ملاجئ" : "No shelters"} />}
-      {shelters.map((s) => (
-        <div key={s.id} className="rounded-xl border border-border bg-card p-5">
+      {providers.length === 0 && <EmptyState text={lang === "ar" ? "لا يوجد مزودو خدمة" : "No service providers"} />}
+      {providers.map((p) => (
+        <div key={p.id} className={`rounded-xl border bg-card p-5 ${p.is_active ? "border-border" : "border-destructive/30 opacity-60"}`}>
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-heading text-lg font-semibold text-foreground">{s.name}</h3>
-              {s.address && <p className="text-sm text-muted-foreground">{s.address}</p>}
-              {s.ngo && <p className="text-xs text-muted-foreground">{lang === "ar" ? "المنظمة" : "NGO"}: {s.ngo}</p>}
-            </div>
-            {editing === s.id ? (
-              <div className="flex gap-2">
-                <button onClick={() => saveEdit(s.id)} className="rounded-lg bg-success p-2 text-success-foreground"><Save className="h-4 w-4" /></button>
-                <button onClick={() => setEditing(null)} className="rounded-lg bg-secondary p-2 text-secondary-foreground"><X className="h-4 w-4" /></button>
+              <div className="flex items-center gap-2">
+                <h3 className="font-heading text-lg font-semibold text-foreground">{p.name}</h3>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${typeColors[p.type] || typeColors.government}`}>
+                  {p.type}
+                </span>
               </div>
-            ) : (
-              <button onClick={() => startEdit(s)} className="rounded-lg bg-secondary p-2 text-secondary-foreground hover:bg-secondary/80"><Edit2 className="h-4 w-4" /></button>
-            )}
+              {p.contact_phone && <p className="text-sm text-muted-foreground">{p.contact_phone}</p>}
+              {p.operating_hours && <p className="text-xs text-muted-foreground">{lang === "ar" ? "ساعات العمل:" : "Hours:"} {p.operating_hours}</p>}
+            </div>
+            <span className={`text-xs font-medium ${p.is_active ? "text-success" : "text-destructive"}`}>
+              {p.is_active ? (lang === "ar" ? "نشط" : "Active") : (lang === "ar" ? "غير نشط" : "Inactive")}
+            </span>
           </div>
-
-          {editing === s.id ? (
-            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{lang === "ar" ? "السعة" : "Capacity"}</label>
-                <input type="number" value={editValues.capacity} onChange={(e) => setEditValues({ ...editValues, capacity: +e.target.value })}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground focus:ring-2 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{lang === "ar" ? "الأماكن المتاحة" : "Available"}</label>
-                <input type="number" value={editValues.available_spots} onChange={(e) => setEditValues({ ...editValues, available_spots: +e.target.value })}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground focus:ring-2 focus:ring-ring" />
-              </div>
-              <div className="flex items-end gap-2">
-                <label className="flex items-center gap-2 text-sm text-foreground">
-                  <input type="checkbox" checked={editValues.is_operational} onChange={(e) => setEditValues({ ...editValues, is_operational: e.target.checked })}
-                    className="h-4 w-4 rounded border-input" />
-                  {lang === "ar" ? "تعمل" : "Operational"}
-                </label>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-3 flex items-center gap-4">
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${s.is_operational ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}`}>
-                {s.is_operational ? (lang === "ar" ? "تعمل" : "Operational") : (lang === "ar" ? "متوقفة" : "Closed")}
-              </span>
-              <span className="text-sm text-muted-foreground">
-                <span className="font-semibold text-foreground">{s.available_spots}</span>/{s.capacity} {lang === "ar" ? "متاح" : "available"}
-              </span>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                <div className={`h-full rounded-full ${s.available_spots > 0 ? "bg-success" : "bg-accent"}`}
-                  style={{ width: `${s.capacity > 0 ? ((s.capacity - s.available_spots) / s.capacity) * 100 : 0}%` }} />
-              </div>
+          {p.services && p.services.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {p.services.map((s) => (
+                <span key={s} className="rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">{s}</span>
+              ))}
             </div>
           )}
         </div>
@@ -185,18 +164,26 @@ const urgencyColors: Record<string, string> = {
 
 const MedRequestList = ({ lang }: { lang: string }) => {
   const [requests, setRequests] = useState<MedRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
 
   useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
+    try {
+      const res = await medicationApi.list();
+      if (res.success && res.data) { setRequests(res.data); setLoading(false); return; }
+    } catch { /* fallback */ }
     const { data } = await supabase.from("medication_requests").select("*").order("created_at", { ascending: false });
     if (data) setRequests(data as MedRequest[]);
     setLoading(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await supabase.from("medication_requests").update({ status: status as any }).eq("id", id);
+    try {
+      await medicationApi.updateStatus(id, status);
+    } catch {
+      await supabase.from("medication_requests").update({ status: status as any }).eq("id", id);
+    }
     fetchAll();
   };
 
@@ -235,103 +222,7 @@ const MedRequestList = ({ lang }: { lang: string }) => {
 };
 
 // ══════════════════════════════════════════
-// 3. MEDICATION INVENTORY (Pharmacies)
-// ══════════════════════════════════════════
-interface Pharmacy { id: string; name: string; address: string | null; phone: string | null; is_operational: boolean; available_medications: string[] | null; }
-
-const MedicationInventory = ({ lang }: { lang: string }) => {
-  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [medInput, setMedInput] = useState("");
-  const [editMeds, setEditMeds] = useState<string[]>([]);
-
-  useEffect(() => { fetchP(); }, []);
-
-  const fetchP = async () => {
-    const { data } = await supabase.from("pharmacies").select("*").order("name");
-    if (data) setPharmacies(data);
-    setLoading(false);
-  };
-
-  const startEdit = (p: Pharmacy) => {
-    setEditing(p.id);
-    setEditMeds(p.available_medications || []);
-    setMedInput("");
-  };
-
-  const addMed = () => {
-    if (medInput.trim() && !editMeds.includes(medInput.trim())) {
-      setEditMeds([...editMeds, medInput.trim()]);
-      setMedInput("");
-    }
-  };
-
-  const removeMed = (m: string) => setEditMeds(editMeds.filter((x) => x !== m));
-
-  const saveEdit = async (id: string) => {
-    await supabase.from("pharmacies").update({ available_medications: editMeds }).eq("id", id);
-    setEditing(null);
-    fetchP();
-  };
-
-  if (loading) return <LoadingState />;
-
-  return (
-    <div className="space-y-3">
-      {pharmacies.length === 0 && <EmptyState text={lang === "ar" ? "لا توجد صيدليات" : "No pharmacies"} />}
-      {pharmacies.map((p) => (
-        <div key={p.id} className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-heading text-lg font-semibold text-foreground">{p.name}</h3>
-              {p.address && <p className="text-sm text-muted-foreground">{p.address}</p>}
-            </div>
-            {editing === p.id ? (
-              <div className="flex gap-2">
-                <button onClick={() => saveEdit(p.id)} className="rounded-lg bg-success p-2 text-success-foreground"><Save className="h-4 w-4" /></button>
-                <button onClick={() => setEditing(null)} className="rounded-lg bg-secondary p-2 text-secondary-foreground"><X className="h-4 w-4" /></button>
-              </div>
-            ) : (
-              <button onClick={() => startEdit(p)} className="rounded-lg bg-secondary p-2 text-secondary-foreground hover:bg-secondary/80"><Edit2 className="h-4 w-4" /></button>
-            )}
-          </div>
-
-          {editing === p.id ? (
-            <div className="mt-4">
-              <div className="mb-3 flex gap-2">
-                <input value={medInput} onChange={(e) => setMedInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addMed())}
-                  placeholder={lang === "ar" ? "أضف دواء..." : "Add medication..."}
-                  className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-                <button onClick={addMed} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">+</button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {editMeds.map((m) => (
-                  <span key={m} className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                    {m}
-                    <button onClick={() => removeMed(m)} className="text-destructive hover:text-destructive/80"><X className="h-3 w-3" /></button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {(p.available_medications || []).map((m) => (
-                <span key={m} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{m}</span>
-              ))}
-              {(!p.available_medications || p.available_medications.length === 0) && (
-                <span className="text-xs text-muted-foreground">{lang === "ar" ? "لا توجد أدوية مسجلة" : "No medications listed"}</span>
-              )}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-};
-
-// ══════════════════════════════════════════
-// 4. SOS ALERT PANEL
+// 3. SOS ALERT PANEL
 // ══════════════════════════════════════════
 const sosStatusColors: Record<string, string> = {
   active: "bg-destructive/15 text-destructive", responding: "bg-accent/15 text-accent",
@@ -345,15 +236,23 @@ const SOSAlertPanel = ({ lang }: { lang: string }) => {
   useEffect(() => { fetchAlerts(); }, []);
 
   const fetchAlerts = async () => {
+    try {
+      const res = await sosApi.list();
+      if (res.success && res.data) { setAlerts(res.data); setLoading(false); return; }
+    } catch { /* fallback */ }
     const { data } = await supabase.from("sos_alerts").select("*").order("created_at", { ascending: false });
     if (data) setAlerts(data as SOSAlert[]);
     setLoading(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
-    const update: any = { status };
-    if (status === "resolved") update.resolved_at = new Date().toISOString();
-    await supabase.from("sos_alerts").update(update).eq("id", id);
+    try {
+      await sosApi.updateStatus(id, status);
+    } catch {
+      const update: any = { status };
+      if (status === "resolved") update.resolved_at = new Date().toISOString();
+      await supabase.from("sos_alerts").update(update).eq("id", id);
+    }
     fetchAlerts();
   };
 
@@ -394,7 +293,7 @@ const SOSAlertPanel = ({ lang }: { lang: string }) => {
 };
 
 // ══════════════════════════════════════════
-// 5. VOLUNTEER ASSIGNMENT
+// 4. VOLUNTEER ASSIGNMENT
 // ══════════════════════════════════════════
 const VolunteerAssignment = ({ lang }: { lang: string }) => {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
@@ -403,13 +302,28 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
   useEffect(() => { fetchV(); }, []);
 
   const fetchV = async () => {
+    try {
+      const res = await volunteersApi.list();
+      if (res.success && res.data) {
+        setVolunteers(res.data.map((v: any) => ({
+          ...v,
+          skills: typeof v.skills === "string" ? JSON.parse(v.skills) : v.skills,
+        })));
+        setLoading(false);
+        return;
+      }
+    } catch { /* fallback */ }
     const { data } = await supabase.from("volunteers").select("*").order("created_at", { ascending: false });
     if (data) setVolunteers(data as Volunteer[]);
     setLoading(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await supabase.from("volunteers").update({ status: status as any }).eq("id", id);
+    try {
+      await volunteersApi.updateStatus(id, status);
+    } catch {
+      await supabase.from("volunteers").update({ status: status as any }).eq("id", id);
+    }
     fetchV();
   };
 
@@ -430,7 +344,7 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
                 {v.bio ? v.bio.slice(0, 40) : (lang === "ar" ? "متطوع" : "Volunteer")}
               </h3>
               <div className="mt-1 flex flex-wrap gap-2">
-                {v.skills.map((s) => (
+                {(Array.isArray(v.skills) ? v.skills : []).map((s) => (
                   <span key={s} className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{s}</span>
                 ))}
               </div>
@@ -458,82 +372,65 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
 };
 
 // ══════════════════════════════════════════
-// 6. CHAT MESSAGES PANEL (NGO)
+// 5. CHAT MESSAGES PANEL
 // ══════════════════════════════════════════
-interface ChatConversation {
-  id: string;
-  user_id: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface ChatMessage {
-  id: string;
-  sender: string;
-  message: string;
-  is_read: boolean;
-  created_at: string;
-}
+interface ChatConversation { id: string; user_id: string; status: string; created_at: string; updated_at: string; }
+interface ChatMessage      { id: string; sender: string; message: string; is_read: boolean; created_at: string; }
 
 const chatStatusColors: Record<string, string> = {
-  open: "bg-success/15 text-success",
-  in_progress: "bg-accent/15 text-accent",
-  closed: "bg-muted text-muted-foreground",
+  open: "bg-success/15 text-success", in_progress: "bg-accent/15 text-accent", closed: "bg-muted text-muted-foreground",
 };
 
 const ChatMessagesPanel = ({ lang }: { lang: string }) => {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
-  const [selectedConv, setSelectedConv] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [reply, setReply] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
+  const [selectedConv, setSelectedConv]   = useState<string | null>(null);
+  const [messages, setMessages]           = useState<ChatMessage[]>([]);
+  const [reply, setReply]                 = useState("");
+  const [loading, setLoading]             = useState(true);
+  const [sending, setSending]             = useState(false);
 
   useEffect(() => { fetchConversations(); }, []);
 
   const fetchConversations = async () => {
     setLoading(true);
-    const { data } = await (supabase as any)
-      .from("chat_conversations")
-      .select("*")
-      .order("updated_at", { ascending: false });
+    try {
+      const res = await chatApi.getConversations();
+      if (res.success) { setConversations(res.data); setLoading(false); return; }
+    } catch { /* fallback */ }
+    const { data } = await (supabase as any).from("chat_conversations").select("*").order("updated_at", { ascending: false });
     if (data) setConversations(data as ChatConversation[]);
     setLoading(false);
   };
 
   const selectConversation = async (convId: string) => {
     setSelectedConv(convId);
-    const { data } = await (supabase as any)
-      .from("chat_messages")
-      .select("*")
-      .eq("conversation_id", convId)
-      .order("created_at", { ascending: true });
+    try {
+      const res = await chatApi.getMessages(convId);
+      if (res.success) { setMessages(res.data); return; }
+    } catch { /* fallback */ }
+    const { data } = await (supabase as any).from("chat_messages").select("*").eq("conversation_id", convId).order("created_at", { ascending: true });
     if (data) setMessages(data as ChatMessage[]);
-
-    // Mark all user messages as read
-    await (supabase as any)
-      .from("chat_messages")
-      .update({ is_read: true })
-      .eq("conversation_id", convId)
-      .eq("sender", "user")
-      .eq("is_read", false);
+    await (supabase as any).from("chat_messages").update({ is_read: true }).eq("conversation_id", convId).eq("sender", "user").eq("is_read", false);
   };
 
   const updateConvStatus = async (convId: string, status: string) => {
-    await (supabase as any).from("chat_conversations").update({ status, updated_at: new Date().toISOString() }).eq("id", convId);
+    try {
+      await chatApi.updateStatus(convId, status);
+    } catch {
+      await (supabase as any).from("chat_conversations").update({ status, updated_at: new Date().toISOString() }).eq("id", convId);
+    }
     fetchConversations();
   };
 
   const sendReply = async () => {
     if (!reply.trim() || !selectedConv || sending) return;
     setSending(true);
-    await (supabase as any).from("chat_messages").insert({
-      conversation_id: selectedConv,
-      sender: "ngo",
-      message: reply.trim(),
-    });
-    await (supabase as any).from("chat_conversations").update({ updated_at: new Date().toISOString() }).eq("id", selectedConv);
+    try {
+      await chatApi.sendMessage(selectedConv, reply.trim());
+    } catch {
+      await (supabase as any).from("chat_messages").insert({ conversation_id: selectedConv, sender: "ngo", message: reply.trim() });
+      await (supabase as any).from("chat_conversations").update({ updated_at: new Date().toISOString() }).eq("id", selectedConv);
+    }
     setReply("");
     await selectConversation(selectedConv);
     setSending(false);
@@ -546,31 +443,24 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <button
-            onClick={() => { setSelectedConv(null); setMessages([]); }}
-            className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground"
-          >
+          <button onClick={() => { setSelectedConv(null); setMessages([]); }}
+            className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground">
             ← {lang === "ar" ? "العودة" : "Back"}
           </button>
           <div className="flex gap-2">
             {(["open", "in_progress", "closed"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => updateConvStatus(selectedConv, s)}
+              <button key={s} onClick={() => updateConvStatus(selectedConv, s)}
                 className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-all ${
                   conv?.status === s ? "bg-primary text-primary-foreground ring-2 ring-ring" : "bg-secondary text-secondary-foreground"
-                }`}
-              >
+                }`}>
                 {s.replace("_", " ")}
               </button>
             ))}
           </div>
         </div>
-        <p className="text-xs text-muted-foreground font-mono">
+        <p className="text-xs font-mono text-muted-foreground">
           {lang === "ar" ? "المعرّف:" : "ID:"} {conv?.user_id.slice(0, 8)}...
         </p>
-
-        {/* Messages */}
         <div className="space-y-3 rounded-xl border border-border bg-card p-4" style={{ maxHeight: "50vh", overflowY: "auto" }}>
           {messages.length === 0 ? (
             <p className="py-8 text-center text-muted-foreground">{lang === "ar" ? "لا رسائل" : "No messages"}</p>
@@ -582,28 +472,18 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
                 <p className={`mt-1 text-[11px] ${msg.sender === "ngo" ? "opacity-70 text-end" : "text-muted-foreground"}`}>
                   {new Date(msg.created_at).toLocaleTimeString(lang === "ar" ? "ar" : "en", { hour: "2-digit", minute: "2-digit" })}
-                  {msg.sender === "user" && <span className="ms-2">{msg.is_read ? (lang === "ar" ? "✓ مقروءة" : "✓ Read") : ""}</span>}
                 </p>
               </div>
             </div>
           ))}
         </div>
-
-        {/* Reply */}
         <div className="flex gap-2">
-          <textarea
-            value={reply}
-            onChange={(e) => setReply(e.target.value.slice(0, 500))}
+          <textarea value={reply} onChange={(e) => setReply(e.target.value.slice(0, 500))}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
-            placeholder={lang === "ar" ? "اكتب الرد..." : "Type reply..."}
-            rows={2}
-            className="flex-1 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <button
-            onClick={sendReply}
-            disabled={!reply.trim() || sending}
-            className="flex items-center justify-center rounded-xl bg-primary px-4 text-primary-foreground disabled:opacity-50"
-          >
+            placeholder={lang === "ar" ? "اكتب الرد..." : "Type reply..."} rows={2}
+            className="flex-1 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+          <button onClick={sendReply} disabled={!reply.trim() || sending}
+            className="flex items-center justify-center rounded-xl bg-primary px-4 text-primary-foreground disabled:opacity-50">
             <Send className="h-5 w-5" />
           </button>
         </div>
@@ -615,22 +495,127 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
     <div className="space-y-3">
       {conversations.length === 0 && <EmptyState text={lang === "ar" ? "لا توجد رسائل واردة" : "No incoming messages"} />}
       {conversations.map((c) => (
-        <button
-          key={c.id}
-          onClick={() => selectConversation(c.id)}
-          className="w-full rounded-xl border border-border bg-card p-5 text-start transition-colors hover:bg-secondary/30"
-        >
+        <button key={c.id} onClick={() => selectConversation(c.id)}
+          className="w-full rounded-xl border border-border bg-card p-5 text-start transition-colors hover:bg-secondary/30">
           <div className="flex items-center justify-between">
             <span className="font-mono text-sm text-foreground">{c.user_id.slice(0, 8)}...</span>
             <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${chatStatusColors[c.status] || chatStatusColors.open}`}>
               {c.status.replace("_", " ")}
             </span>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {new Date(c.updated_at).toLocaleString(lang === "ar" ? "ar" : "en")}
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{new Date(c.updated_at).toLocaleString(lang === "ar" ? "ar" : "en")}</p>
         </button>
       ))}
+    </div>
+  );
+};
+
+// ══════════════════════════════════════════
+// 6. ANALYTICS PANEL
+// ══════════════════════════════════════════
+const AnalyticsPanel = ({ lang }: { lang: string }) => {
+  const [summary, setSummary] = useState<any>(null);
+  const [shortages, setShortages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      analyticsApi.summary().catch(() => null),
+      analyticsApi.medicationShortages().catch(() => null),
+    ]).then(([sum, sh]) => {
+      if (sum?.success) setSummary(sum.data);
+      if (sh?.success) setShortages(sh.data);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return <LoadingState />;
+  if (!summary) return <EmptyState text={lang === "ar" ? "لا تتوفر بيانات تحليلية" : "No analytics data available"} />;
+
+  const { requests, providers, volunteers } = summary;
+
+  return (
+    <div className="space-y-6">
+      {/* Request Stats */}
+      <div>
+        <h3 className="mb-3 font-heading text-base font-semibold text-foreground">
+          {lang === "ar" ? "إحصاءات الطلبات" : "Request Statistics"}
+        </h3>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: lang === "ar" ? "إجمالي الطلبات" : "Total Requests", value: requests?.total_requests ?? 0, color: "text-primary" },
+            { label: lang === "ar" ? "تم حلها" : "Resolved", value: requests?.resolved_requests ?? 0, color: "text-success" },
+            { label: lang === "ar" ? "نشطة" : "Active", value: requests?.active_requests ?? 0, color: "text-accent" },
+            { label: lang === "ar" ? "حرجة" : "Critical", value: requests?.critical_requests ?? 0, color: "text-destructive" },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-xl border border-border bg-card p-4 text-center">
+              <p className={`font-heading text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Request Type Breakdown */}
+      <div>
+        <h3 className="mb-3 font-heading text-base font-semibold text-foreground">
+          {lang === "ar" ? "تصنيف الطلبات" : "Request Type Breakdown"}
+        </h3>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: "SOS",         value: requests?.sos_count          ?? 0, color: "text-destructive" },
+            { label: lang === "ar" ? "طبي" : "Medical", value: requests?.medical_count ?? 0, color: "text-accent" },
+            { label: lang === "ar" ? "دواء" : "Medication", value: requests?.medication_count ?? 0, color: "text-primary" },
+            { label: lang === "ar" ? "إنساني" : "Humanitarian", value: requests?.humanitarian_count ?? 0, color: "text-success" },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-xl border border-border bg-card p-4 text-center">
+              <p className={`font-heading text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Platform Stats */}
+      <div>
+        <h3 className="mb-3 font-heading text-base font-semibold text-foreground">
+          {lang === "ar" ? "إحصاءات المنصة" : "Platform Statistics"}
+        </h3>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: lang === "ar" ? "مزودو الخدمة" : "Providers", value: providers?.active_providers ?? 0, color: "text-accent" },
+            { label: lang === "ar" ? "المتطوعون المتاحون" : "Available Volunteers", value: volunteers?.available_volunteers ?? 0, color: "text-success" },
+            { label: lang === "ar" ? "المتطوعون المكلّفون" : "Assigned Volunteers", value: volunteers?.assigned_volunteers ?? 0, color: "text-primary" },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-xl border border-border bg-card p-4 text-center">
+              <p className={`font-heading text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Medication Shortages */}
+      {shortages.length > 0 && (
+        <div>
+          <h3 className="mb-3 font-heading text-base font-semibold text-foreground">
+            {lang === "ar" ? "نقص الأدوية" : "Medication Shortage Monitor"}
+          </h3>
+          <div className="space-y-2">
+            {shortages.slice(0, 5).map((s: any) => (
+              <div key={s.medication_name} className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
+                <span className="font-medium text-foreground">{s.medication_name}</span>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="text-destructive font-medium">{s.pending_requests} {lang === "ar" ? "طلب معلّق" : "pending"}</span>
+                  {s.critical_requests > 0 && (
+                    <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-destructive">{s.critical_requests} {lang === "ar" ? "حرج" : "critical"}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
