@@ -210,7 +210,7 @@ const NgoSecure = () => {
 
           <div className="mt-6 flex items-center justify-center gap-2 text-xs text-[hsl(215,15%,40%)]">
             <Shield className="h-3.5 w-3.5" />
-            <span>{isAr ? "لا يتم تسجيل عنوان IP أو الموقع" : "No IP or location logging"}</span>
+            <span>{isAr ? "لا يتم تسجيل عنوان IP أو أي بيانات جغرافية" : "No IP or geographic data logging"}</span>
           </div>
         </div>
       </div>
@@ -219,9 +219,9 @@ const NgoSecure = () => {
 
   // ─── SECURE DASHBOARD ───
   const tabs: { id: Tab; label: string; icon: typeof Building2; count?: number }[] = [
-    { id: "sos", label: isAr ? "تنبيهات SOS" : "SOS Alerts", icon: AlertTriangle, count: sosAlerts.filter(a => a.status === "active").length },
-    { id: "med_requests", label: isAr ? "طلبات الأدوية" : "Med Requests", icon: Pill, count: medRequests.filter(m => m.status === "pending").length },
-    { id: "shelters", label: isAr ? "الملاجئ" : "Shelters", icon: Building2 },
+    { id: "sos", label: isAr ? "مسار الطوارئ" : "Emergency Routing", icon: AlertTriangle, count: sosAlerts.filter(a => a.status === "active").length },
+    { id: "med_requests", label: isAr ? "طلبات التوجيه الدوائي" : "Medication Routing", icon: Pill, count: medRequests.filter(m => m.status === "pending").length },
+    { id: "shelters", label: isAr ? "موارد الإيواء" : "Shelter Resources", icon: Building2 },
     { id: "notes", label: isAr ? "ملاحظات التنسيق" : "Coordination Notes", icon: MessageSquare },
   ];
 

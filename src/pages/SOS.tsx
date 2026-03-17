@@ -1,35 +1,31 @@
 import { useState } from "react";
-import { AlertTriangle, MapPin, Send, Phone as PhoneIcon } from "lucide-react";
+import { AlertTriangle, Send, Phone as PhoneIcon, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { useGeolocation } from "@/hooks/useGeolocation";
 import { supabase } from "@/integrations/supabase/client";
 import EmergencyNumbers from "@/components/EmergencyNumbers";
+import { getRoutingSummary } from "@/lib/request-routing";
 
 const SOS = () => {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
-  const { position, requestLocation } = useGeolocation();
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
+  const [urgency, setUrgency] = useState<"high" | "critical">("critical");
   const [sending, setSending] = useState(false);
   const [showNumbers, setShowNumbers] = useState(false);
   const isAr = lang === "ar";
+  const routing = getRoutingSummary("medical_emergency");
 
   const handleSOS = async () => {
     if (!user) return;
     setSending(true);
-    requestLocation();
-
-    const insertData: any = {
+    const formattedMessage = [`Priority: ${urgency}`, message.trim()].filter(Boolean).join("\n");
+    const insertData = {
       user_id: user.id,
-      message: message || null,
+      message: formattedMessage || null,
       status: "active" as const,
     };
-
-    if (position) {
-      insertData.location = `POINT(${position.longitude} ${position.latitude})`;
-    }
 
     const { error } = await supabase.from("sos_alerts").insert(insertData);
     if (!error) setSent(true);
@@ -79,9 +75,44 @@ const SOS = () => {
               />
             </div>
 
-            <div className="mb-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" />
-              <span>{t("sos.locationAuto")}</span>
+            <div className="mb-4 rounded-xl border border-border bg-card p-4 text-start">
+              <p className="mb-3 text-sm font-medium text-foreground">
+                {isAr ? "درجة الأولوية" : "Priority level"}
+              </p>
+              <div className="flex gap-2">
+                {([
+                  { value: "high", label: isAr ? "مرتفع" : "High" },
+                  { value: "critical", label: isAr ? "حرج" : "Critical" },
+                ] as const).map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setUrgency(option.value)}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                      urgency === option.value
+                        ? "bg-destructive text-destructive-foreground"
+                        : "bg-secondary text-secondary-foreground"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-start">
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="mt-0.5 h-4 w-4 text-primary" />
+                <div className="space-y-1 text-sm">
+                  <p className="font-medium text-foreground">{t("sos.locationAuto")}</p>
+                  <p className="text-muted-foreground">
+                    {isAr ? "الفئة:" : "Category:"} {routing.categoryLabel}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {isAr ? "مسار التوجيه:" : "Routing path:"} {routing.moduleLabel}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <button

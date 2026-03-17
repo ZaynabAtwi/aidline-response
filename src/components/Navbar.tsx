@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Building2, Stethoscope, Pill, Users, RefreshCw, Fuel, MessageCircle } from "lucide-react";
+import { Home, Stethoscope, Pill, Users, RefreshCw, MessageCircle } from "lucide-react";
 import logo from "@/assets/logo.png";
 import LanguageToggle from "./LanguageToggle";
 import ThemeToggle from "./ThemeToggle";
@@ -13,9 +13,9 @@ const Navbar = () => {
 
   const navItems = [
     { path: "/", label: t("nav.home"), icon: Home },
-    { path: "/shelters", label: t("nav.shelters"), icon: Building2 },
     { path: "/clinics", label: t("nav.clinics"), icon: Stethoscope },
     { path: "/medication", label: t("nav.medication"), icon: Pill },
+    { path: "/volunteers", label: t("nav.volunteers"), icon: Users },
     { path: "/chat", label: t("nav.chat"), icon: MessageCircle },
   ];
 

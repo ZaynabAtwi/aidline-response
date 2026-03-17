@@ -11,41 +11,41 @@ export const translations = {
   'nav.sos': { ar: 'طوارئ', en: 'SOS' },
 
   // Home page
-  'home.tagline': { ar: 'استجابة الأزمات في متناول يدك. اعثر على الملاجئ والطعام والرعاية الطبية والدعم — فوراً.', en: 'Crisis response at your fingertips. Find shelters, food, medical care, and support — instantly.' },
+  'home.tagline': { ar: 'منصة تنسيق أزمات توجه الطلبات إلى الجهة المناسبة بسرعة وأمان ومن دون تتبع للموقع.', en: 'A crisis coordination platform that routes requests quickly and securely without location tracking.' },
   'home.sos': { ar: 'طوارئ SOS', en: 'SOS Emergency' },
   'home.findShelter': { ar: 'ابحث عن ملجأ', en: 'Find Shelter' },
-  'home.findShelterDesc': { ar: 'حدد أقرب الملاجئ المتاحة', en: 'Locate nearest available shelters' },
+  'home.findShelterDesc': { ar: 'اطلب دعم الإيواء عبر شبكة المنظمات', en: 'Request shelter support through the NGO network' },
   'home.findFood': { ar: 'ابحث عن طعام', en: 'Find Food' },
   'home.findFoodDesc': { ar: 'نقاط توزيع الطعام النشطة', en: 'Active food distribution points' },
   'home.findClinics': { ar: 'ابحث عن عيادات', en: 'Find Clinics' },
-  'home.findClinicsDesc': { ar: 'عيادات وصيدليات قريبة', en: 'Clinics & pharmacies nearby' },
+  'home.findClinicsDesc': { ar: 'دليل العيادات والصيدليات ضمن الشبكة', en: 'Directory of clinics and pharmacies in the network' },
   'home.medication': { ar: 'الأدوية', en: 'Medication' },
-  'home.medicationDesc': { ar: 'سجّل احتياجاتك الدوائية', en: 'Register medication needs' },
+  'home.medicationDesc': { ar: 'أرسل طلبات دوائية ليتم توجيهها', en: 'Submit medication requests for routing' },
   'home.volunteer': { ar: 'تطوّع', en: 'Volunteer' },
-  'home.volunteerDesc': { ar: 'سجّل مهاراتك واحصل على مهام', en: 'Register skills & get matched' },
+  'home.volunteerDesc': { ar: 'سجّل مهاراتك للتكليف المنسق', en: 'Register skills for coordinated assignment' },
   'home.activeShelters': { ar: 'ملاجئ نشطة', en: 'Active Shelters' },
   'home.volunteersCount': { ar: 'متطوعون', en: 'Volunteers' },
   'home.ngosActive': { ar: 'منظمات نشطة', en: 'NGOs Active' },
 
   // Shelters
   'shelters.title': { ar: 'الملاجئ', en: 'Shelters' },
-  'shelters.subtitle': { ar: 'الملاجئ القريبة مرتبة حسب المسافة. الأخضر يعني أن هناك أماكن متاحة.', en: 'Nearby shelters sorted by distance. Green means beds available.' },
+  'shelters.subtitle': { ar: 'قائمة الملاجئ المتاحة ضمن شبكة الاستجابة. اللون الأخضر يعني وجود أماكن متاحة.', en: 'Available shelters within the response network. Green means space is available.' },
   'shelters.available': { ar: 'متاح', en: 'available' },
-  'shelters.gpsSearch': { ar: 'البحث بالموقع', en: 'Search by GPS' },
+  'shelters.gpsSearch': { ar: 'التوجيه الآلي', en: 'Automated routing' },
   'shelters.manualSearch': { ar: 'البحث يدوياً', en: 'Manual Search' },
   'shelters.searchPlaceholder': { ar: 'ابحث عن ملجأ بالاسم أو العنوان...', en: 'Search by name or address...' },
-  'shelters.locating': { ar: 'جاري تحديد موقعك...', en: 'Locating you...' },
+  'shelters.locating': { ar: 'جارٍ تجهيز التوجيه...', en: 'Preparing routing...' },
   'shelters.noResults': { ar: 'لا توجد ملاجئ', en: 'No shelters found' },
 
   // Clinics
   'clinics.title': { ar: 'العيادات والصيدليات', en: 'Clinics & Pharmacies' },
-  'clinics.subtitle': { ar: 'المرافق الطبية القريبة مع تفاصيل الخدمات.', en: 'Medical facilities near you with service details.' },
+  'clinics.subtitle': { ar: 'مرافق طبية موثقة داخل شبكة AidLine مع تفاصيل الخدمات.', en: 'Verified medical facilities in the AidLine network with service details.' },
   'clinics.open': { ar: 'مفتوح', en: 'Open' },
   'clinics.closed': { ar: 'مغلق', en: 'Closed' },
 
   // Medication
   'med.title': { ar: 'سجل الأدوية', en: 'Medication Registry' },
-  'med.subtitle': { ar: 'سجّل احتياجات الأدوية المزمنة ليتم تلبيتها من المنظمات.', en: 'Register chronic medication needs for NGO fulfillment.' },
+  'med.subtitle': { ar: 'أرسل احتياجات الدواء ليتم فرزها وتوجيهها إلى الصيدليات أو منظمات الدعم.', en: 'Submit medication needs for triage and routing to pharmacies or support organizations.' },
   'med.newRequest': { ar: 'طلب جديد', en: 'New Request' },
   'med.medication': { ar: 'الدواء', en: 'Medication' },
   'med.selectMed': { ar: 'اختر الدواء...', en: 'Select medication...' },
@@ -62,7 +62,7 @@ export const translations = {
 
   // Volunteers
   'vol.title': { ar: 'المتطوعون', en: 'Volunteers' },
-  'vol.subtitle': { ar: 'متطوعون ماهرون يتم مطابقتهم حسب القرب والخبرة.', en: 'Skilled volunteers matched by proximity and expertise.' },
+  'vol.subtitle': { ar: 'يتم تنسيق المتطوعين بحسب المهارات والتوفر، وليس بحسب القرب الجغرافي.', en: 'Volunteers are coordinated by skills and availability, not by geographic proximity.' },
   'vol.register': { ar: 'سجّل كمتطوع', en: 'Register as Volunteer' },
   'vol.skills': { ar: 'المهارات', en: 'Skills' },
   'vol.selectSkills': { ar: 'اختر مهاراتك', en: 'Select your skills' },
@@ -77,12 +77,12 @@ export const translations = {
 
   // SOS
   'sos.title': { ar: 'طوارئ SOS', en: 'SOS Emergency' },
-  'sos.subtitle': { ar: 'أرسل تنبيه طوارئ مع موقعك لجميع المستجيبين القريبين.', en: 'Send an emergency alert with your location to all nearby responders.' },
+  'sos.subtitle': { ar: 'أرسل طلب طوارئ ليتم فرزه وتوجيهه فوراً إلى شبكة الاستجابة المناسبة.', en: 'Send an emergency request for immediate triage and routing to the right response network.' },
   'sos.placeholder': { ar: 'صف حالة الطوارئ (اختياري)...', en: 'Describe your emergency (optional)...' },
-  'sos.locationAuto': { ar: 'سيتم مشاركة موقعك تلقائياً', en: 'Location will be shared automatically' },
+  'sos.locationAuto': { ar: 'لا يتم جمع أي بيانات موقع', en: 'No location data is collected' },
   'sos.send': { ar: 'إرسال تنبيه SOS', en: 'SEND SOS ALERT' },
   'sos.sent': { ar: 'تم إرسال التنبيه', en: 'Alert Sent' },
-  'sos.sentMessage': { ar: 'تم بث تنبيه SOS الخاص بك لجميع المستجيبين القريبين. ابقَ في مكانك إذا كان آمناً.', en: 'Your SOS alert has been broadcast to all nearby responders. Stay where you are if safe.' },
+  'sos.sentMessage': { ar: 'دخل طلب الطوارئ إلى مسار التوجيه العاجل. ابقَ متاحاً عبر القناة الآمنة إذا كان ذلك آمناً.', en: 'Your emergency request has entered the urgent routing queue. Stay available in the secure channel if safe.' },
   'sos.sendAnother': { ar: 'إرسال تنبيه آخر', en: 'Send Another Alert' },
   'sos.loginRequired': { ar: 'يجب تسجيل الدخول لإرسال تنبيه', en: 'Login required to send alert' },
 
@@ -102,7 +102,7 @@ export const translations = {
 
   // Food
   'food.title': { ar: 'توزيع الطعام', en: 'Food Distribution' },
-  'food.subtitle': { ar: 'نقاط توزيع الطعام النشطة بالقرب من موقعك.', en: 'Active food distribution points near your location.' },
+  'food.subtitle': { ar: 'جهات دعم غذائي نشطة ضمن شبكة الاستجابة.', en: 'Active food support providers within the response network.' },
   'food.open': { ar: 'مفتوح', en: 'Open' },
   'food.closed': { ar: 'مغلق', en: 'Closed' },
 

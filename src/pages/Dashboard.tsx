@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Building2, Pill, AlertTriangle, Users, ClipboardList, Save, X, Edit2, UserCheck, MessageCircle, Send, Eye } from "lucide-react";
+import { Building2, Pill, AlertTriangle, Users, ClipboardList, Save, X, Edit2, UserCheck, MessageCircle, Send, Workflow } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,12 +41,12 @@ const Dashboard = () => {
   );
 
   const tabs: { id: Tab; label: string; icon: typeof Building2 }[] = [
-    { id: "shelters", label: lang === "ar" ? "الملاجئ" : "Shelters", icon: Building2 },
-    { id: "requests", label: lang === "ar" ? "طلبات الأدوية" : "Med Requests", icon: ClipboardList },
-    { id: "medication", label: lang === "ar" ? "المخزون" : "Inventory", icon: Pill },
-    { id: "sos", label: lang === "ar" ? "تنبيهات SOS" : "SOS Alerts", icon: AlertTriangle },
-    { id: "volunteers", label: lang === "ar" ? "المتطوعون" : "Volunteers", icon: Users },
-    { id: "messages", label: lang === "ar" ? "الرسائل الواردة" : "Messages", icon: MessageCircle },
+    { id: "shelters", label: lang === "ar" ? "موارد الإيواء" : "Shelter Resources", icon: Building2 },
+    { id: "requests", label: lang === "ar" ? "قائمة التوجيه" : "Routing Queue", icon: ClipboardList },
+    { id: "medication", label: lang === "ar" ? "مخزون الأدوية" : "Medication Inventory", icon: Pill },
+    { id: "sos", label: lang === "ar" ? "حالات الطوارئ" : "Emergency Cases", icon: AlertTriangle },
+    { id: "volunteers", label: lang === "ar" ? "مجمع المستجيبين" : "Responder Pool", icon: Users },
+    { id: "messages", label: lang === "ar" ? "الاتصال الآمن" : "Secure Communication", icon: MessageCircle },
   ];
 
   return (
@@ -55,6 +55,14 @@ const Dashboard = () => {
         <h1 className="mb-6 font-heading text-3xl font-bold text-foreground">
           {lang === "ar" ? "لوحة تحكم المنظمة" : "NGO Admin Dashboard"}
         </h1>
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-primary/20 bg-card p-4 text-sm text-muted-foreground">
+          <Workflow className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <p>
+            {lang === "ar"
+              ? "تعمل هذه اللوحة كطبقة توجيه ومتابعة: فرز الطلبات، إسناد المستجيب المناسب، ثم متابعة الحالة عبر القنوات الآمنة من دون أي اعتماد على الموقع."
+              : "This dashboard acts as a routing and follow-up layer: triage requests, assign the right responder, and coordinate resolution through secure channels without relying on location data."}
+          </p>
+        </div>
 
         {/* Tab Navigation */}
         <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1">

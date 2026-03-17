@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Pill, Clock, CheckCircle, AlertTriangle } from "lucide-react";
+import { Pill, Clock, CheckCircle, AlertTriangle, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getRoutingSummary } from "@/lib/request-routing";
 
 
 const medications = [
@@ -43,6 +44,7 @@ const Medication = () => {
   const [submitted, setSubmitted] = useState(false);
   const [requests, setRequests] = useState<MedRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const routing = getRoutingSummary("medication_need");
 
   useEffect(() => {
     if (user) fetchRequests();
@@ -87,6 +89,13 @@ const Medication = () => {
           <h1 className="font-heading text-3xl font-bold text-foreground">{t("med.title")}</h1>
         </div>
         <p className="mb-8 text-muted-foreground">{t("med.subtitle")}</p>
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-primary/20 bg-card p-4 text-sm">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <div className="space-y-1 text-muted-foreground">
+            <p className="font-medium text-foreground">{routing.categoryLabel}</p>
+            <p>Requests are routed through the {routing.moduleLabel} and can be escalated to NGO support if stock is unavailable.</p>
+          </div>
+        </div>
 
         {user && (
           <>

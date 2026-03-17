@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
-import { Users, MapPin, CheckCircle, Clock, Star } from "lucide-react";
+import { Users, CheckCircle, Clock, Star, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useGeolocation } from "@/hooks/useGeolocation";
 
 
 const skillOptions = [
@@ -31,7 +30,6 @@ const statusConfig: Record<string, { color: string; icon: typeof CheckCircle }> 
 const Volunteers = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { position, requestLocation } = useGeolocation();
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRegister, setShowRegister] = useState(false);
@@ -60,19 +58,12 @@ const Volunteers = () => {
     e.preventDefault();
     if (!user || selectedSkills.length === 0) return;
     setSubmitting(true);
-
-    requestLocation();
-
-    const insertData: any = {
+    const insertData = {
       user_id: user.id,
       skills: selectedSkills,
       bio: bio || null,
       status: "available" as const,
     };
-
-    if (position) {
-      insertData.location = `POINT(${position.longitude} ${position.latitude})`;
-    }
 
     const { error } = await supabase.from("volunteers").insert(insertData);
     if (!error) {
@@ -102,6 +93,12 @@ const Volunteers = () => {
           )}
         </div>
         <p className="mb-6 text-muted-foreground">{t("vol.subtitle")}</p>
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-primary/20 bg-card p-4 text-sm text-muted-foreground">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <p>
+            Volunteer assignments are routed by skills, current availability, and case priority. No location data is requested or stored in this workflow.
+          </p>
+        </div>
 
         {registered && (
           <div className="mb-6 rounded-lg bg-success/15 px-4 py-3 text-sm font-medium text-success">

@@ -1,12 +1,19 @@
 import { Link } from "react-router-dom";
-import { Stethoscope, Pill, Users, AlertTriangle, MessageCircle } from "lucide-react";
-import logo from "@/assets/logo.png";
+import { Stethoscope, Pill, Users, AlertTriangle, MessageCircle, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const Index = () => {
   const { t } = useLanguage();
+  const routingStages = [
+    "User Request",
+    "AI Classification",
+    "Service Routing",
+    "Responder Acceptance",
+    "Secure Communication",
+    "Case Resolution",
+  ];
 
   const actions = [
   { label: t("home.findClinics"), description: t("home.findClinicsDesc"), icon: Stethoscope, path: "/clinics", color: "bg-accent/15 text-accent glow-accent" },
@@ -26,12 +33,20 @@ const Index = () => {
       {/* Hero */}
       <section className="flex flex-col items-center px-4 pt-8 text-center md:pt-12">
         <div className="mb-4 gap-4 flex items-start justify-start">
-          
           <h1 className="font-heading text-4xl font-bold text-foreground md:text-5xl">
             Aid<span className="text-gradient-primary">Line</span>
           </h1>
         </div>
         <p className="max-w-md text-lg text-muted-foreground">{t("home.tagline")}</p>
+        <div className="mt-6 flex max-w-2xl items-start gap-3 rounded-2xl border border-primary/20 bg-card px-5 py-4 text-start">
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div>
+            <p className="font-medium text-foreground">Structured request routing</p>
+            <p className="text-sm text-muted-foreground">
+              AidLine coordinates care through triage, routing, and secure communication instead of GPS matching.
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* SOS Button */}
@@ -62,6 +77,20 @@ const Index = () => {
             </div>
           </Link>
         )}
+      </section>
+
+      <section className="mx-auto mt-8 max-w-4xl px-4">
+        <div className="rounded-xl border border-border bg-card p-6">
+          <h2 className="font-heading text-lg font-semibold text-foreground">Operational pipeline</h2>
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            {routingStages.map((stage, index) => (
+              <div key={stage} className="flex items-center gap-2">
+                <span className="rounded-full bg-secondary px-3 py-1 text-secondary-foreground">{stage}</span>
+                {index < routingStages.length - 1 && <span aria-hidden="true">→</span>}
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* Stats Bar */}
