@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Building2, Pill, AlertTriangle, Users, ClipboardList, Save, X, Edit2, UserCheck, MessageCircle, Send } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -97,14 +97,17 @@ const Dashboard = () => {
   const [tab, setTab] = useState<Tab>("shelters");
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    if (user) checkRole();
-  }, [user]);
-
-  const checkRole = async () => {
+  const checkRole = useCallback(async () => {
+    if (!user) return;
     const { data } = await supabase.from("user_roles").select("role").eq("user_id", user!.id).eq("role", "ngo_admin");
     setIsAdmin(data && data.length > 0);
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      void checkRole();
+    }
+  }, [checkRole, user]);
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">{t("common.loading")}</div>;
   if (!user) return <Navigate to="/onboarding" />;
