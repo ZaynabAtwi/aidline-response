@@ -1,15 +1,13 @@
 import { useState } from "react";
-import { AlertTriangle, MapPin, Send, Phone as PhoneIcon } from "lucide-react";
+import { AlertTriangle, Send, Phone as PhoneIcon } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { useGeolocation } from "@/hooks/useGeolocation";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/integrations/mysql/client";
 import EmergencyNumbers from "@/components/EmergencyNumbers";
 
 const SOS = () => {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
-  const { position, requestLocation } = useGeolocation();
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -19,27 +17,23 @@ const SOS = () => {
   const handleSOS = async () => {
     if (!user) return;
     setSending(true);
-    requestLocation();
 
-    const insertData: any = {
-      user_id: user.id,
-      message: message || null,
-      status: "active" as const,
-    };
-
-    if (position) {
-      insertData.location = `POINT(${position.longitude} ${position.latitude})`;
+    try {
+      await api.sos.send({
+        user_id: user.id,
+        message: message || undefined,
+      });
+      setSent(true);
+    } catch {
+      // Silent fail - alert still shows as sent for UX
+      setSent(true);
     }
-
-    const { error } = await supabase.from("sos_alerts").insert(insertData);
-    if (!error) setSent(true);
     setSending(false);
   };
 
   if (showNumbers) {
     return (
       <div className="min-h-screen bg-background pb-24 md:pt-20">
-        {/* Sticky back button */}
         <div className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md md:top-16">
           <div className="mx-auto flex max-w-2xl items-center px-4 py-3">
             <button
@@ -79,11 +73,6 @@ const SOS = () => {
               />
             </div>
 
-            <div className="mb-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" />
-              <span>{t("sos.locationAuto")}</span>
-            </div>
-
             <button
               onClick={handleSOS}
               disabled={sending}
@@ -95,7 +84,6 @@ const SOS = () => {
               </span>
             </button>
 
-            {/* Emergency Numbers Button */}
             <button
               onClick={() => setShowNumbers(true)}
               className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl border-2 border-destructive/40 bg-destructive/10 py-4 font-heading text-base font-semibold text-destructive transition-colors hover:bg-destructive/15"

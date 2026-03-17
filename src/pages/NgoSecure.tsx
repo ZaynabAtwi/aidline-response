@@ -1,23 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/integrations/mysql/client";
 import {
   Shield, Lock, Building2, Pill, AlertTriangle, MessageSquare,
   Save, X, Edit2, Clock, RefreshCw, LogOut, Send
 } from "lucide-react";
 
-const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
-
-// ── API helper ──
-const ngoApi = async (token: string, action: string, payload?: any) => {
-  const { data, error } = await supabase.functions.invoke("ngo-secure", {
-    body: { token, action, payload },
-  });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data?.data;
-};
+const INACTIVITY_TIMEOUT = 10 * 60 * 1000;
 
 type Tab = "med_requests" | "sos" | "shelters" | "notes";
 
@@ -42,17 +31,14 @@ const sosColor: Record<string, string> = {
 
 const NgoSecure = () => {
   const { lang } = useLanguage();
-  const navigate = useNavigate();
   const isAr = lang === "ar";
 
-  // Auth state
   const [token, setToken] = useState("");
   const [tokenInput, setTokenInput] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
-  // Inactivity timer
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const resetTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -74,7 +60,6 @@ const NgoSecure = () => {
     };
   }, [authenticated, resetTimer]);
 
-  // No-index meta tag
   useEffect(() => {
     const meta = document.createElement("meta");
     meta.name = "robots";
@@ -83,21 +68,14 @@ const NgoSecure = () => {
     return () => { document.head.removeChild(meta); };
   }, []);
 
-  // Tab state
   const [tab, setTab] = useState<Tab>("sos");
-
-  // Data
   const [medRequests, setMedRequests] = useState<MedReq[]>([]);
   const [sosAlerts, setSosAlerts] = useState<SOSAlert[]>([]);
   const [shelters, setShelters] = useState<Shelter[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
-
-  // Shelter editing
   const [editingShelter, setEditingShelter] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({ capacity: 0, available_spots: 0, is_operational: true });
-
-  // Notes
   const [noteInput, setNoteInput] = useState("");
   const [addingNote, setAddingNote] = useState(false);
 
@@ -105,9 +83,11 @@ const NgoSecure = () => {
     setAuthLoading(true);
     setAuthError("");
     try {
-      await ngoApi(tokenInput, "get_sos_alerts");
-      setToken(tokenInput);
-      setAuthenticated(true);
+      const result = await api.ngo.secureAction(tokenInput, "get_sos_alerts");
+      if (result) {
+        setToken(tokenInput);
+        setAuthenticated(true);
+      }
     } catch {
       setAuthError(isAr ? "رمز غير صالح أو منتهي الصلاحية" : "Invalid or expired token");
     }
@@ -125,16 +105,16 @@ const NgoSecure = () => {
     setLoading(true);
     try {
       const [meds, sos, shel, n] = await Promise.all([
-        ngoApi(token, "get_medication_requests"),
-        ngoApi(token, "get_sos_alerts"),
-        ngoApi(token, "get_shelters"),
-        ngoApi(token, "get_notes"),
+        api.ngo.secureAction(token, "get_medication_requests"),
+        api.ngo.secureAction(token, "get_sos_alerts"),
+        api.ngo.secureAction(token, "get_shelters"),
+        api.ngo.secureAction(token, "get_notes"),
       ]);
-      setMedRequests(meds || []);
-      setSosAlerts(sos || []);
-      setShelters(shel || []);
-      setNotes(n || []);
-    } catch { /* silent */ }
+      setMedRequests(meds?.data || []);
+      setSosAlerts(sos?.data || []);
+      setShelters(shel?.data || []);
+      setNotes(n?.data || []);
+    } catch {}
     setLoading(false);
   }, [token]);
 
@@ -143,31 +123,38 @@ const NgoSecure = () => {
   }, [authenticated, fetchData]);
 
   const saveShelter = async (id: string) => {
-    await ngoApi(token, "update_shelter", { id, ...editValues });
+    try {
+      await api.ngo.secureAction(token, "update_shelter", { id, ...editValues });
+    } catch {}
     setEditingShelter(null);
     fetchData();
   };
 
   const updateSos = async (id: string, status: string) => {
-    await ngoApi(token, "update_sos_status", { id, status });
+    try {
+      await api.ngo.secureAction(token, "update_sos_status", { id, status });
+    } catch {}
     fetchData();
   };
 
   const updateMed = async (id: string, status: string) => {
-    await ngoApi(token, "update_med_status", { id, status });
+    try {
+      await api.ngo.secureAction(token, "update_med_status", { id, status });
+    } catch {}
     fetchData();
   };
 
   const addNote = async () => {
     if (!noteInput.trim()) return;
     setAddingNote(true);
-    const result = await ngoApi(token, "add_note", { content: noteInput.trim() });
-    if (result) setNotes([result, ...notes]);
+    try {
+      const result = await api.ngo.secureAction(token, "add_note", { content: noteInput.trim() });
+      if (result?.data) setNotes([result.data, ...notes]);
+    } catch {}
     setNoteInput("");
     setAddingNote(false);
   };
 
-  // ─── LOGIN SCREEN ───
   if (!authenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[hsl(220,25%,6%)] px-4">
@@ -217,7 +204,6 @@ const NgoSecure = () => {
     );
   }
 
-  // ─── SECURE DASHBOARD ───
   const tabs: { id: Tab; label: string; icon: typeof Building2; count?: number }[] = [
     { id: "sos", label: isAr ? "تنبيهات SOS" : "SOS Alerts", icon: AlertTriangle, count: sosAlerts.filter(a => a.status === "active").length },
     { id: "med_requests", label: isAr ? "طلبات الأدوية" : "Med Requests", icon: Pill, count: medRequests.filter(m => m.status === "pending").length },
@@ -227,7 +213,6 @@ const NgoSecure = () => {
 
   return (
     <div className="min-h-screen bg-[hsl(220,25%,6%)]">
-      {/* Top bar */}
       <div className="border-b border-[hsl(220,15%,15%)] bg-[hsl(220,22%,8%)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
@@ -249,7 +234,6 @@ const NgoSecure = () => {
       </div>
 
       <div className="mx-auto max-w-5xl px-4 py-6">
-        {/* Tabs */}
         <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,8%)] p-1">
           {tabs.map((t) => (
             <button
@@ -274,7 +258,6 @@ const NgoSecure = () => {
           ))}
         </div>
 
-        {/* SOS Alerts */}
         {tab === "sos" && (
           <div className="space-y-3">
             {sosAlerts.length === 0 && <EmptyBox text={isAr ? "لا توجد تنبيهات" : "No alerts"} />}
@@ -312,7 +295,6 @@ const NgoSecure = () => {
           </div>
         )}
 
-        {/* Med Requests */}
         {tab === "med_requests" && (
           <div className="space-y-3">
             {medRequests.length === 0 && <EmptyBox text={isAr ? "لا توجد طلبات" : "No requests"} />}
@@ -329,7 +311,7 @@ const NgoSecure = () => {
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {(["pending", "approved", "fulfilled", "cancelled"] as const).map((s) => (
+                  {(["pending", "confirmed", "fulfilled", "escalated", "cancelled"] as const).map((s) => (
                     <button
                       key={s}
                       onClick={() => updateMed(r.id, s)}
@@ -348,7 +330,6 @@ const NgoSecure = () => {
           </div>
         )}
 
-        {/* Shelters */}
         {tab === "shelters" && (
           <div className="space-y-3">
             {shelters.length === 0 && <EmptyBox text={isAr ? "لا توجد ملاجئ" : "No shelters"} />}
@@ -413,7 +394,6 @@ const NgoSecure = () => {
           </div>
         )}
 
-        {/* Coordination Notes */}
         {tab === "notes" && (
           <div>
             <div className="mb-4 flex gap-2">
@@ -445,7 +425,6 @@ const NgoSecure = () => {
         )}
       </div>
 
-      {/* Inactivity warning bar */}
       <div className="fixed bottom-0 start-0 end-0 border-t border-[hsl(220,15%,15%)] bg-[hsl(220,22%,8%)] px-4 py-2 text-center text-xs text-[hsl(215,15%,40%)]">
         <Shield className="mb-0.5 inline h-3 w-3" /> {isAr ? "خروج تلقائي بعد 10 دقائق من عدم النشاط" : "Auto-logout after 10 minutes of inactivity"}
       </div>

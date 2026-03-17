@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
-import { Users, MapPin, CheckCircle, Clock, Star } from "lucide-react";
+import { Users, CheckCircle, Clock, Star } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { useGeolocation } from "@/hooks/useGeolocation";
-
+import { api } from "@/integrations/mysql/client";
 
 const skillOptions = [
   "Medical", "Translation", "Logistics", "Driving", "Construction",
@@ -15,11 +13,10 @@ const skillOptions = [
 interface Volunteer {
   id: string;
   user_id: string;
-  skills: string[];
+  skills: string[] | string;
   status: string;
   rating: number | null;
   bio: string | null;
-  profiles?: { full_name: string | null } | null;
 }
 
 const statusConfig: Record<string, { color: string; icon: typeof CheckCircle }> = {
@@ -31,7 +28,6 @@ const statusConfig: Record<string, { color: string; icon: typeof CheckCircle }> 
 const Volunteers = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { position, requestLocation } = useGeolocation();
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRegister, setShowRegister] = useState(false);
@@ -45,9 +41,18 @@ const Volunteers = () => {
   }, []);
 
   const fetchVolunteers = async () => {
-    const { data } = await supabase.from("volunteers").select("*").order("rating", { ascending: false });
-    if (data) setVolunteers(data as Volunteer[]);
+    try {
+      const data = await api.volunteers.getAll();
+      setVolunteers(data);
+    } catch {
+      // API unavailable
+    }
     setLoading(false);
+  };
+
+  const parseSkills = (skills: string[] | string): string[] => {
+    if (Array.isArray(skills)) return skills;
+    try { return JSON.parse(skills); } catch { return []; }
   };
 
   const toggleSkill = (skill: string) => {
@@ -61,25 +66,18 @@ const Volunteers = () => {
     if (!user || selectedSkills.length === 0) return;
     setSubmitting(true);
 
-    requestLocation();
-
-    const insertData: any = {
-      user_id: user.id,
-      skills: selectedSkills,
-      bio: bio || null,
-      status: "available" as const,
-    };
-
-    if (position) {
-      insertData.location = `POINT(${position.longitude} ${position.latitude})`;
-    }
-
-    const { error } = await supabase.from("volunteers").insert(insertData);
-    if (!error) {
+    try {
+      await api.volunteers.register({
+        user_id: user.id,
+        skills: selectedSkills,
+        bio: bio || undefined,
+      });
       setRegistered(true);
       setShowRegister(false);
       fetchVolunteers();
       setTimeout(() => setRegistered(false), 3000);
+    } catch {
+      // Silent fail
     }
     setSubmitting(false);
   };
@@ -109,7 +107,6 @@ const Volunteers = () => {
           </div>
         )}
 
-        {/* Registration Form */}
         {showRegister && user ? (
           <form onSubmit={handleRegister} className="mb-8 rounded-xl border border-border bg-card p-6">
             <h2 className="mb-4 font-heading text-lg font-semibold text-foreground">{t("vol.register")}</h2>
@@ -164,7 +161,6 @@ const Volunteers = () => {
           </form>
         ) : null}
 
-        {/* Volunteer List */}
         {loading ? (
           <div className="py-12 text-center text-muted-foreground">{t("common.loading")}</div>
         ) : (
@@ -173,6 +169,7 @@ const Volunteers = () => {
               const config = statusConfig[v.status] || statusConfig.available;
               const StatusIcon = config.icon;
               const statusLabel = t(`vol.${v.status}` as any) || v.status;
+              const skills = parseSkills(v.skills);
               return (
                 <div key={v.id} className="rounded-xl border border-border bg-card p-5">
                   <div className="flex items-start justify-between">
@@ -192,7 +189,7 @@ const Volunteers = () => {
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {v.skills.map((s) => (
+                    {skills.map((s) => (
                       <span key={s} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                         {s}
                       </span>

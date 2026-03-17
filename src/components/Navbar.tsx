@@ -1,6 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Building2, Stethoscope, Pill, Users, RefreshCw, Fuel, MessageCircle } from "lucide-react";
-import logo from "@/assets/logo.png";
+import { Home, Stethoscope, Pill, Users, RefreshCw, MessageCircle } from "lucide-react";
 import LanguageToggle from "./LanguageToggle";
 import ThemeToggle from "./ThemeToggle";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -13,7 +12,6 @@ const Navbar = () => {
 
   const navItems = [
     { path: "/", label: t("nav.home"), icon: Home },
-    { path: "/shelters", label: t("nav.shelters"), icon: Building2 },
     { path: "/clinics", label: t("nav.clinics"), icon: Stethoscope },
     { path: "/medication", label: t("nav.medication"), icon: Pill },
     { path: "/chat", label: t("nav.chat"), icon: MessageCircle },
@@ -23,7 +21,6 @@ const Navbar = () => {
     <nav className="fixed bottom-0 start-0 end-0 z-50 border-t border-border bg-card/95 backdrop-blur-md md:top-0 md:bottom-auto md:border-b md:border-t-0">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-2 py-2 md:px-6">
         <Link to="/" className="hidden items-center gap-2 md:flex">
-          <img src={logo} alt="AidLine Response" className="h-8 w-8" />
           <span className="font-heading text-lg font-bold text-foreground">AidLine</span>
         </Link>
         <div className="flex w-full items-center justify-around gap-1 md:w-auto md:gap-2">

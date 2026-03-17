@@ -1,17 +1,16 @@
 import { useState, useEffect } from "react";
-import { Building2, Pill, AlertTriangle, Users, ClipboardList, Save, X, Edit2, UserCheck, MessageCircle, Send, Eye } from "lucide-react";
+import { Building2, Pill, AlertTriangle, Users, ClipboardList, Save, X, Edit2, UserCheck, MessageCircle, Send, Eye, BarChart3 } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/integrations/mysql/client";
 import { Link, Navigate } from "react-router-dom";
 
-type Tab = "shelters" | "medication" | "sos" | "volunteers" | "requests" | "messages";
+type Tab = "shelters" | "medication" | "sos" | "volunteers" | "requests" | "messages" | "analytics";
 
-// ── Types ──
 interface Shelter { id: string; name: string; address: string | null; capacity: number; available_spots: number; is_operational: boolean; ngo: string | null; }
 interface MedRequest { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; user_id: string; }
 interface SOSAlert { id: string; message: string | null; status: string; created_at: string; user_id: string; responded_by: string | null; }
-interface Volunteer { id: string; user_id: string; skills: string[]; status: string; rating: number | null; bio: string | null; }
+interface Volunteer { id: string; user_id: string; skills: string[] | string; status: string; rating: number | null; bio: string | null; }
 
 const Dashboard = () => {
   const { t, lang } = useLanguage();
@@ -24,8 +23,12 @@ const Dashboard = () => {
   }, [user]);
 
   const checkRole = async () => {
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", user!.id).eq("role", "ngo_admin");
-    setIsAdmin(data && data.length > 0);
+    try {
+      const { hasRole } = await api.auth.checkRole(user!.id, 'ngo_admin');
+      setIsAdmin(hasRole);
+    } catch {
+      setIsAdmin(false);
+    }
   };
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">{t("common.loading")}</div>;
@@ -47,6 +50,7 @@ const Dashboard = () => {
     { id: "sos", label: lang === "ar" ? "تنبيهات SOS" : "SOS Alerts", icon: AlertTriangle },
     { id: "volunteers", label: lang === "ar" ? "المتطوعون" : "Volunteers", icon: Users },
     { id: "messages", label: lang === "ar" ? "الرسائل الواردة" : "Messages", icon: MessageCircle },
+    { id: "analytics", label: lang === "ar" ? "التحليلات" : "Analytics", icon: BarChart3 },
   ];
 
   return (
@@ -56,7 +60,6 @@ const Dashboard = () => {
           {lang === "ar" ? "لوحة تحكم المنظمة" : "NGO Admin Dashboard"}
         </h1>
 
-        {/* Tab Navigation */}
         <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1">
           {tabs.map((t) => (
             <button
@@ -72,32 +75,31 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Tab Content */}
         {tab === "shelters" && <ShelterManager lang={lang} />}
         {tab === "requests" && <MedRequestList lang={lang} />}
         {tab === "medication" && <MedicationInventory lang={lang} />}
         {tab === "sos" && <SOSAlertPanel lang={lang} />}
         {tab === "volunteers" && <VolunteerAssignment lang={lang} />}
         {tab === "messages" && <ChatMessagesPanel lang={lang} />}
+        {tab === "analytics" && <AnalyticsPanel lang={lang} />}
       </div>
     </div>
   );
 };
 
-// ══════════════════════════════════════════
-// 1. SHELTER CAPACITY MANAGER
-// ══════════════════════════════════════════
 const ShelterManager = ({ lang }: { lang: string }) => {
   const [shelters, setShelters] = useState<Shelter[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({ capacity: 0, available_spots: 0, is_operational: true });
 
-  useEffect(() => { fetch(); }, []);
+  useEffect(() => { fetchShelters(); }, []);
 
-  const fetch = async () => {
-    const { data } = await supabase.from("shelters").select("*").order("name");
-    if (data) setShelters(data);
+  const fetchShelters = async () => {
+    try {
+      const data = await api.shelters.getAll();
+      setShelters(data);
+    } catch {}
     setLoading(false);
   };
 
@@ -107,9 +109,11 @@ const ShelterManager = ({ lang }: { lang: string }) => {
   };
 
   const saveEdit = async (id: string) => {
-    await supabase.from("shelters").update(editValues).eq("id", id);
+    try {
+      await api.shelters.update(id, editValues);
+    } catch {}
     setEditing(null);
-    fetch();
+    fetchShelters();
   };
 
   if (loading) return <LoadingState />;
@@ -175,9 +179,6 @@ const ShelterManager = ({ lang }: { lang: string }) => {
   );
 };
 
-// ══════════════════════════════════════════
-// 2. MEDICATION REQUEST LIST
-// ══════════════════════════════════════════
 const urgencyColors: Record<string, string> = {
   low: "bg-muted text-muted-foreground", medium: "bg-accent/15 text-accent",
   high: "bg-accent/25 text-accent", critical: "bg-destructive/15 text-destructive",
@@ -190,13 +191,17 @@ const MedRequestList = ({ lang }: { lang: string }) => {
   useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
-    const { data } = await supabase.from("medication_requests").select("*").order("created_at", { ascending: false });
-    if (data) setRequests(data as MedRequest[]);
+    try {
+      const data = await api.medication.getAllRequests();
+      setRequests(data);
+    } catch {}
     setLoading(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await supabase.from("medication_requests").update({ status: status as any }).eq("id", id);
+    try {
+      await api.medication.updateRequestStatus(id, { status });
+    } catch {}
     fetchAll();
   };
 
@@ -216,7 +221,7 @@ const MedRequestList = ({ lang }: { lang: string }) => {
             <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColors[r.urgency]}`}>{r.urgency}</span>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            {(["pending", "approved", "fulfilled", "cancelled"] as const).map((s) => (
+            {(["pending", "confirmed", "fulfilled", "escalated", "cancelled"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => updateStatus(r.id, s)}
@@ -234,10 +239,7 @@ const MedRequestList = ({ lang }: { lang: string }) => {
   );
 };
 
-// ══════════════════════════════════════════
-// 3. MEDICATION INVENTORY (Pharmacies)
-// ══════════════════════════════════════════
-interface Pharmacy { id: string; name: string; address: string | null; phone: string | null; is_operational: boolean; available_medications: string[] | null; }
+interface Pharmacy { id: string; name: string; address: string | null; phone: string | null; is_operational: boolean; available_medications: string[] | string | null; }
 
 const MedicationInventory = ({ lang }: { lang: string }) => {
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
@@ -249,14 +251,22 @@ const MedicationInventory = ({ lang }: { lang: string }) => {
   useEffect(() => { fetchP(); }, []);
 
   const fetchP = async () => {
-    const { data } = await supabase.from("pharmacies").select("*").order("name");
-    if (data) setPharmacies(data);
+    try {
+      const data = await api.medication.getPharmacies();
+      setPharmacies(data);
+    } catch {}
     setLoading(false);
+  };
+
+  const parseMeds = (meds: string[] | string | null): string[] => {
+    if (!meds) return [];
+    if (Array.isArray(meds)) return meds;
+    try { return JSON.parse(meds); } catch { return []; }
   };
 
   const startEdit = (p: Pharmacy) => {
     setEditing(p.id);
-    setEditMeds(p.available_medications || []);
+    setEditMeds(parseMeds(p.available_medications));
     setMedInput("");
   };
 
@@ -270,7 +280,9 @@ const MedicationInventory = ({ lang }: { lang: string }) => {
   const removeMed = (m: string) => setEditMeds(editMeds.filter((x) => x !== m));
 
   const saveEdit = async (id: string) => {
-    await supabase.from("pharmacies").update({ available_medications: editMeds }).eq("id", id);
+    try {
+      await api.medication.updatePharmacyMedications(id, editMeds);
+    } catch {}
     setEditing(null);
     fetchP();
   };
@@ -280,59 +292,59 @@ const MedicationInventory = ({ lang }: { lang: string }) => {
   return (
     <div className="space-y-3">
       {pharmacies.length === 0 && <EmptyState text={lang === "ar" ? "لا توجد صيدليات" : "No pharmacies"} />}
-      {pharmacies.map((p) => (
-        <div key={p.id} className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-heading text-lg font-semibold text-foreground">{p.name}</h3>
-              {p.address && <p className="text-sm text-muted-foreground">{p.address}</p>}
-            </div>
-            {editing === p.id ? (
-              <div className="flex gap-2">
-                <button onClick={() => saveEdit(p.id)} className="rounded-lg bg-success p-2 text-success-foreground"><Save className="h-4 w-4" /></button>
-                <button onClick={() => setEditing(null)} className="rounded-lg bg-secondary p-2 text-secondary-foreground"><X className="h-4 w-4" /></button>
+      {pharmacies.map((p) => {
+        const meds = parseMeds(p.available_medications);
+        return (
+          <div key={p.id} className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-heading text-lg font-semibold text-foreground">{p.name}</h3>
+                {p.address && <p className="text-sm text-muted-foreground">{p.address}</p>}
               </div>
-            ) : (
-              <button onClick={() => startEdit(p)} className="rounded-lg bg-secondary p-2 text-secondary-foreground hover:bg-secondary/80"><Edit2 className="h-4 w-4" /></button>
-            )}
-          </div>
-
-          {editing === p.id ? (
-            <div className="mt-4">
-              <div className="mb-3 flex gap-2">
-                <input value={medInput} onChange={(e) => setMedInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addMed())}
-                  placeholder={lang === "ar" ? "أضف دواء..." : "Add medication..."}
-                  className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-                <button onClick={addMed} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">+</button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {editMeds.map((m) => (
-                  <span key={m} className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                    {m}
-                    <button onClick={() => removeMed(m)} className="text-destructive hover:text-destructive/80"><X className="h-3 w-3" /></button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {(p.available_medications || []).map((m) => (
-                <span key={m} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{m}</span>
-              ))}
-              {(!p.available_medications || p.available_medications.length === 0) && (
-                <span className="text-xs text-muted-foreground">{lang === "ar" ? "لا توجد أدوية مسجلة" : "No medications listed"}</span>
+              {editing === p.id ? (
+                <div className="flex gap-2">
+                  <button onClick={() => saveEdit(p.id)} className="rounded-lg bg-success p-2 text-success-foreground"><Save className="h-4 w-4" /></button>
+                  <button onClick={() => setEditing(null)} className="rounded-lg bg-secondary p-2 text-secondary-foreground"><X className="h-4 w-4" /></button>
+                </div>
+              ) : (
+                <button onClick={() => startEdit(p)} className="rounded-lg bg-secondary p-2 text-secondary-foreground hover:bg-secondary/80"><Edit2 className="h-4 w-4" /></button>
               )}
             </div>
-          )}
-        </div>
-      ))}
+
+            {editing === p.id ? (
+              <div className="mt-4">
+                <div className="mb-3 flex gap-2">
+                  <input value={medInput} onChange={(e) => setMedInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addMed())}
+                    placeholder={lang === "ar" ? "أضف دواء..." : "Add medication..."}
+                    className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+                  <button onClick={addMed} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">+</button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {editMeds.map((m) => (
+                    <span key={m} className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                      {m}
+                      <button onClick={() => removeMed(m)} className="text-destructive hover:text-destructive/80"><X className="h-3 w-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {meds.map((m) => (
+                  <span key={m} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{m}</span>
+                ))}
+                {meds.length === 0 && (
+                  <span className="text-xs text-muted-foreground">{lang === "ar" ? "لا توجد أدوية مسجلة" : "No medications listed"}</span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };
 
-// ══════════════════════════════════════════
-// 4. SOS ALERT PANEL
-// ══════════════════════════════════════════
 const sosStatusColors: Record<string, string> = {
   active: "bg-destructive/15 text-destructive", responding: "bg-accent/15 text-accent",
   resolved: "bg-success/15 text-success", cancelled: "bg-muted text-muted-foreground",
@@ -345,15 +357,17 @@ const SOSAlertPanel = ({ lang }: { lang: string }) => {
   useEffect(() => { fetchAlerts(); }, []);
 
   const fetchAlerts = async () => {
-    const { data } = await supabase.from("sos_alerts").select("*").order("created_at", { ascending: false });
-    if (data) setAlerts(data as SOSAlert[]);
+    try {
+      const data = await api.sos.getAll();
+      setAlerts(data);
+    } catch {}
     setLoading(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
-    const update: any = { status };
-    if (status === "resolved") update.resolved_at = new Date().toISOString();
-    await supabase.from("sos_alerts").update(update).eq("id", id);
+    try {
+      await api.sos.updateStatus(id, status);
+    } catch {}
     fetchAlerts();
   };
 
@@ -393,9 +407,6 @@ const SOSAlertPanel = ({ lang }: { lang: string }) => {
   );
 };
 
-// ══════════════════════════════════════════
-// 5. VOLUNTEER ASSIGNMENT
-// ══════════════════════════════════════════
 const VolunteerAssignment = ({ lang }: { lang: string }) => {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -403,13 +414,22 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
   useEffect(() => { fetchV(); }, []);
 
   const fetchV = async () => {
-    const { data } = await supabase.from("volunteers").select("*").order("created_at", { ascending: false });
-    if (data) setVolunteers(data as Volunteer[]);
+    try {
+      const data = await api.volunteers.getAll();
+      setVolunteers(data);
+    } catch {}
     setLoading(false);
   };
 
+  const parseSkills = (skills: string[] | string): string[] => {
+    if (Array.isArray(skills)) return skills;
+    try { return JSON.parse(skills); } catch { return []; }
+  };
+
   const updateStatus = async (id: string, status: string) => {
-    await supabase.from("volunteers").update({ status: status as any }).eq("id", id);
+    try {
+      await api.volunteers.updateStatus(id, status);
+    } catch {}
     fetchV();
   };
 
@@ -422,44 +442,44 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
   return (
     <div className="space-y-3">
       {volunteers.length === 0 && <EmptyState text={lang === "ar" ? "لا يوجد متطوعون" : "No volunteers"} />}
-      {volunteers.map((v) => (
-        <div key={v.id} className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-heading text-base font-semibold text-foreground">
-                {v.bio ? v.bio.slice(0, 40) : (lang === "ar" ? "متطوع" : "Volunteer")}
-              </h3>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {v.skills.map((s) => (
-                  <span key={s} className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{s}</span>
-                ))}
+      {volunteers.map((v) => {
+        const skills = parseSkills(v.skills);
+        return (
+          <div key={v.id} className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-heading text-base font-semibold text-foreground">
+                  {v.bio ? v.bio.slice(0, 40) : (lang === "ar" ? "متطوع" : "Volunteer")}
+                </h3>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {skills.map((s) => (
+                    <span key={s} className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{s}</span>
+                  ))}
+                </div>
               </div>
+              <span className={`text-sm font-medium capitalize ${statusColors[v.status]}`}>{v.status}</span>
             </div>
-            <span className={`text-sm font-medium capitalize ${statusColors[v.status]}`}>{v.status}</span>
+            <div className="mt-3 flex gap-2">
+              <button onClick={() => updateStatus(v.id, "available")}
+                className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${v.status === "available" ? "bg-success text-success-foreground" : "bg-secondary text-secondary-foreground"}`}>
+                <UserCheck className="h-3.5 w-3.5" /> {lang === "ar" ? "متاح" : "Available"}
+              </button>
+              <button onClick={() => updateStatus(v.id, "assigned")}
+                className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${v.status === "assigned" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"}`}>
+                <Users className="h-3.5 w-3.5" /> {lang === "ar" ? "مكلّف" : "Assigned"}
+              </button>
+              <button onClick={() => updateStatus(v.id, "unavailable")}
+                className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${v.status === "unavailable" ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground"}`}>
+                <X className="h-3.5 w-3.5" /> {lang === "ar" ? "غير متاح" : "Unavailable"}
+              </button>
+            </div>
           </div>
-          <div className="mt-3 flex gap-2">
-            <button onClick={() => updateStatus(v.id, "available")}
-              className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${v.status === "available" ? "bg-success text-success-foreground" : "bg-secondary text-secondary-foreground"}`}>
-              <UserCheck className="h-3.5 w-3.5" /> {lang === "ar" ? "متاح" : "Available"}
-            </button>
-            <button onClick={() => updateStatus(v.id, "assigned")}
-              className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${v.status === "assigned" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"}`}>
-              <Users className="h-3.5 w-3.5" /> {lang === "ar" ? "مكلّف" : "Assigned"}
-            </button>
-            <button onClick={() => updateStatus(v.id, "unavailable")}
-              className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${v.status === "unavailable" ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground"}`}>
-              <X className="h-3.5 w-3.5" /> {lang === "ar" ? "غير متاح" : "Unavailable"}
-            </button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
 
-// ══════════════════════════════════════════
-// 6. CHAT MESSAGES PANEL (NGO)
-// ══════════════════════════════════════════
 interface ChatConversation {
   id: string;
   user_id: string;
@@ -470,7 +490,7 @@ interface ChatConversation {
 
 interface ChatMessage {
   id: string;
-  sender: string;
+  sender_type: string;
   message: string;
   is_read: boolean;
   created_at: string;
@@ -494,48 +514,41 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
 
   const fetchConversations = async () => {
     setLoading(true);
-    const { data } = await (supabase as any)
-      .from("chat_conversations")
-      .select("*")
-      .order("updated_at", { ascending: false });
-    if (data) setConversations(data as ChatConversation[]);
+    try {
+      const data = await api.communication.getAllConversations();
+      setConversations(data);
+    } catch {}
     setLoading(false);
   };
 
   const selectConversation = async (convId: string) => {
     setSelectedConv(convId);
-    const { data } = await (supabase as any)
-      .from("chat_messages")
-      .select("*")
-      .eq("conversation_id", convId)
-      .order("created_at", { ascending: true });
-    if (data) setMessages(data as ChatMessage[]);
-
-    // Mark all user messages as read
-    await (supabase as any)
-      .from("chat_messages")
-      .update({ is_read: true })
-      .eq("conversation_id", convId)
-      .eq("sender", "user")
-      .eq("is_read", false);
+    try {
+      const data = await api.communication.getMessages(convId);
+      setMessages(data);
+      await api.communication.markRead(convId, 'user');
+    } catch {}
   };
 
   const updateConvStatus = async (convId: string, status: string) => {
-    await (supabase as any).from("chat_conversations").update({ status, updated_at: new Date().toISOString() }).eq("id", convId);
+    try {
+      await api.communication.updateConversationStatus(convId, status);
+    } catch {}
     fetchConversations();
   };
 
   const sendReply = async () => {
     if (!reply.trim() || !selectedConv || sending) return;
     setSending(true);
-    await (supabase as any).from("chat_messages").insert({
-      conversation_id: selectedConv,
-      sender: "ngo",
-      message: reply.trim(),
-    });
-    await (supabase as any).from("chat_conversations").update({ updated_at: new Date().toISOString() }).eq("id", selectedConv);
-    setReply("");
-    await selectConversation(selectedConv);
+    try {
+      await api.communication.sendMessage({
+        conversation_id: selectedConv,
+        sender_type: "provider",
+        message: reply.trim(),
+      });
+      setReply("");
+      await selectConversation(selectedConv);
+    } catch {}
     setSending(false);
   };
 
@@ -570,26 +583,24 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
           {lang === "ar" ? "المعرّف:" : "ID:"} {conv?.user_id.slice(0, 8)}...
         </p>
 
-        {/* Messages */}
         <div className="space-y-3 rounded-xl border border-border bg-card p-4" style={{ maxHeight: "50vh", overflowY: "auto" }}>
           {messages.length === 0 ? (
             <p className="py-8 text-center text-muted-foreground">{lang === "ar" ? "لا رسائل" : "No messages"}</p>
           ) : messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.sender === "ngo" ? "justify-end" : "justify-start"}`}>
+            <div key={msg.id} className={`flex ${msg.sender_type === "provider" ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                msg.sender === "ngo" ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-secondary text-secondary-foreground"
+                msg.sender_type === "provider" ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-secondary text-secondary-foreground"
               }`}>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
-                <p className={`mt-1 text-[11px] ${msg.sender === "ngo" ? "opacity-70 text-end" : "text-muted-foreground"}`}>
+                <p className={`mt-1 text-[11px] ${msg.sender_type === "provider" ? "opacity-70 text-end" : "text-muted-foreground"}`}>
                   {new Date(msg.created_at).toLocaleTimeString(lang === "ar" ? "ar" : "en", { hour: "2-digit", minute: "2-digit" })}
-                  {msg.sender === "user" && <span className="ms-2">{msg.is_read ? (lang === "ar" ? "✓ مقروءة" : "✓ Read") : ""}</span>}
+                  {msg.sender_type === "user" && <span className="ms-2">{msg.is_read ? (lang === "ar" ? "✓ مقروءة" : "✓ Read") : ""}</span>}
                 </p>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Reply */}
         <div className="flex gap-2">
           <textarea
             value={reply}
@@ -635,7 +646,80 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
   );
 };
 
-// ── Shared Components ──
+// 8. Crisis Intelligence Panel
+const AnalyticsPanel = ({ lang }: { lang: string }) => {
+  const [overview, setOverview] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { fetchAnalytics(); }, []);
+
+  const fetchAnalytics = async () => {
+    try {
+      const data = await api.analytics.getOverview();
+      setOverview(data);
+    } catch {}
+    setLoading(false);
+  };
+
+  if (loading) return <LoadingState />;
+  if (!overview) return <EmptyState text={lang === "ar" ? "لا توجد بيانات" : "No data available"} />;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label={lang === "ar" ? "تنبيهات SOS" : "SOS Alerts"} value={overview.sos?.total || 0} highlight={overview.sos?.active || 0} highlightLabel={lang === "ar" ? "نشطة" : "active"} color="text-destructive" />
+        <StatCard label={lang === "ar" ? "طلبات الأدوية" : "Med Requests"} value={overview.medication?.total || 0} highlight={overview.medication?.pending || 0} highlightLabel={lang === "ar" ? "معلقة" : "pending"} color="text-primary" />
+        <StatCard label={lang === "ar" ? "الملاجئ" : "Shelters"} value={overview.shelters?.total || 0} highlight={overview.shelters?.total_available || 0} highlightLabel={lang === "ar" ? "أماكن متاحة" : "spots available"} color="text-success" />
+        <StatCard label={lang === "ar" ? "المتطوعون" : "Volunteers"} value={overview.volunteers?.total || 0} highlight={overview.volunteers?.available || 0} highlightLabel={lang === "ar" ? "متاحون" : "available"} color="text-accent" />
+      </div>
+
+      {overview.requests_by_type && overview.requests_by_type.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="mb-4 font-heading text-lg font-semibold text-foreground">
+            {lang === "ar" ? "الطلبات حسب النوع" : "Requests by Type"}
+          </h3>
+          <div className="space-y-2">
+            {overview.requests_by_type.map((r: any) => (
+              <div key={r.request_type} className="flex items-center justify-between rounded-lg bg-secondary/50 px-4 py-2">
+                <span className="text-sm capitalize text-foreground">{r.request_type}</span>
+                <span className="font-semibold text-foreground">{r.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {overview.providers && overview.providers.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="mb-4 font-heading text-lg font-semibold text-foreground">
+            {lang === "ar" ? "مزودو الخدمات" : "Service Providers"}
+          </h3>
+          <div className="space-y-2">
+            {overview.providers.map((p: any) => (
+              <div key={p.provider_type} className="flex items-center justify-between rounded-lg bg-secondary/50 px-4 py-2">
+                <span className="text-sm capitalize text-foreground">{p.provider_type}</span>
+                <span className="text-sm text-muted-foreground">
+                  {p.operational}/{p.count} {lang === "ar" ? "تعمل" : "operational"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const StatCard = ({ label, value, highlight, highlightLabel, color }: { label: string; value: number; highlight: number; highlightLabel: string; color: string }) => (
+  <div className="rounded-xl border border-border bg-card p-4 text-center">
+    <p className={`font-heading text-2xl font-bold ${color}`}>{value}</p>
+    <p className="text-xs text-muted-foreground">{label}</p>
+    <p className="mt-1 text-xs text-muted-foreground">
+      <span className="font-semibold">{highlight}</span> {highlightLabel}
+    </p>
+  </div>
+);
+
 const LoadingState = () => <div className="py-12 text-center text-muted-foreground">Loading...</div>;
 const EmptyState = ({ text }: { text: string }) => <div className="py-12 text-center text-muted-foreground">{text}</div>;
 

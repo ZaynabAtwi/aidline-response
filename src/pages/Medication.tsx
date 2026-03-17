@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { Pill, Clock, CheckCircle, AlertTriangle } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-
+import { api } from "@/integrations/mysql/client";
 
 const medications = [
   "Insulin (Rapid-acting)", "Insulin (Long-acting)", "Metformin", "Amlodipine",
@@ -20,8 +19,11 @@ const urgencyColors: Record<string, string> = {
 
 const statusIcons: Record<string, typeof CheckCircle> = {
   pending: Clock,
-  approved: Clock,
+  confirmed: Clock,
+  alternative_suggested: Clock,
+  reserved: Clock,
   fulfilled: CheckCircle,
+  escalated: AlertTriangle,
   cancelled: AlertTriangle,
 };
 
@@ -49,30 +51,32 @@ const Medication = () => {
   }, [user]);
 
   const fetchRequests = async () => {
-    const { data } = await supabase
-      .from("medication_requests")
-      .select("*")
-      .eq("user_id", user!.id)
-      .order("created_at", { ascending: false });
-    if (data) setRequests(data as MedRequest[]);
+    try {
+      const data = await api.medication.getRequestsForUser(user!.id);
+      setRequests(data);
+    } catch {
+      // API unavailable
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMed || !user) return;
     setLoading(true);
-    const { error } = await supabase.from("medication_requests").insert({
-      user_id: user.id,
-      medication_name: selectedMed,
-      urgency: urgency as any,
-      notes: notes || null,
-    });
-    if (!error) {
+    try {
+      await api.medication.createRequest({
+        user_id: user.id,
+        medication_name: selectedMed,
+        urgency,
+        notes: notes || undefined,
+      });
       setSubmitted(true);
       setSelectedMed("");
       setNotes("");
       fetchRequests();
       setTimeout(() => setSubmitted(false), 3000);
+    } catch {
+      // Silent fail
     }
     setLoading(false);
   };
