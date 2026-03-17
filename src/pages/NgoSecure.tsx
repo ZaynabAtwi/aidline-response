@@ -114,7 +114,7 @@ const NgoSecure = () => {
       setSosAlerts(sos?.data || []);
       setShelters(shel?.data || []);
       setNotes(n?.data || []);
-    } catch {}
+    } catch { /* API unavailable */ }
     setLoading(false);
   }, [token]);
 
@@ -125,7 +125,7 @@ const NgoSecure = () => {
   const saveShelter = async (id: string) => {
     try {
       await api.ngo.secureAction(token, "update_shelter", { id, ...editValues });
-    } catch {}
+    } catch { /* API unavailable */ }
     setEditingShelter(null);
     fetchData();
   };
@@ -133,14 +133,14 @@ const NgoSecure = () => {
   const updateSos = async (id: string, status: string) => {
     try {
       await api.ngo.secureAction(token, "update_sos_status", { id, status });
-    } catch {}
+    } catch { /* API unavailable */ }
     fetchData();
   };
 
   const updateMed = async (id: string, status: string) => {
     try {
       await api.ngo.secureAction(token, "update_med_status", { id, status });
-    } catch {}
+    } catch { /* API unavailable */ }
     fetchData();
   };
 
@@ -150,7 +150,7 @@ const NgoSecure = () => {
     try {
       const result = await api.ngo.secureAction(token, "add_note", { content: noteInput.trim() });
       if (result?.data) setNotes([result.data, ...notes]);
-    } catch {}
+    } catch { /* API unavailable */ }
     setNoteInput("");
     setAddingNote(false);
   };

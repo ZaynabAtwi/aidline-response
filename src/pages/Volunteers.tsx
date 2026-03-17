@@ -168,6 +168,7 @@ const Volunteers = () => {
             {volunteers.map((v) => {
               const config = statusConfig[v.status] || statusConfig.available;
               const StatusIcon = config.icon;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const statusLabel = t(`vol.${v.status}` as any) || v.status;
               const skills = parseSkills(v.skills);
               return (

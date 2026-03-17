@@ -42,7 +42,7 @@ router.get('/provider/:providerId', async (req: Request, res: Response) => {
 // Accept a route
 router.patch('/:routeId/accept', async (req: Request, res: Response) => {
   try {
-    await acceptRoute(req.params.routeId);
+    await acceptRoute(req.params.routeId as string);
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -52,7 +52,7 @@ router.patch('/:routeId/accept', async (req: Request, res: Response) => {
 // Complete a route
 router.patch('/:routeId/complete', async (req: Request, res: Response) => {
   try {
-    await completeRoute(req.params.routeId);
+    await completeRoute(req.params.routeId as string);
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -62,7 +62,7 @@ router.patch('/:routeId/complete', async (req: Request, res: Response) => {
 // Escalate a route
 router.patch('/:routeId/escalate', async (req: Request, res: Response) => {
   try {
-    await escalateRoute(req.params.routeId);
+    await escalateRoute(req.params.routeId as string);
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

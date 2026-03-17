@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import { Building2, Pill, AlertTriangle, Users, ClipboardList, Save, X, Edit2, UserCheck, MessageCircle, Send, Eye, BarChart3 } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -99,7 +100,7 @@ const ShelterManager = ({ lang }: { lang: string }) => {
     try {
       const data = await api.shelters.getAll();
       setShelters(data);
-    } catch {}
+    } catch { /* API unavailable */ }
     setLoading(false);
   };
 
@@ -111,7 +112,7 @@ const ShelterManager = ({ lang }: { lang: string }) => {
   const saveEdit = async (id: string) => {
     try {
       await api.shelters.update(id, editValues);
-    } catch {}
+    } catch { /* API unavailable */ }
     setEditing(null);
     fetchShelters();
   };
@@ -194,14 +195,14 @@ const MedRequestList = ({ lang }: { lang: string }) => {
     try {
       const data = await api.medication.getAllRequests();
       setRequests(data);
-    } catch {}
+    } catch { /* API unavailable */ }
     setLoading(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
     try {
       await api.medication.updateRequestStatus(id, { status });
-    } catch {}
+    } catch { /* API unavailable */ }
     fetchAll();
   };
 
@@ -254,7 +255,7 @@ const MedicationInventory = ({ lang }: { lang: string }) => {
     try {
       const data = await api.medication.getPharmacies();
       setPharmacies(data);
-    } catch {}
+    } catch { /* API unavailable */ }
     setLoading(false);
   };
 
@@ -282,7 +283,7 @@ const MedicationInventory = ({ lang }: { lang: string }) => {
   const saveEdit = async (id: string) => {
     try {
       await api.medication.updatePharmacyMedications(id, editMeds);
-    } catch {}
+    } catch { /* API unavailable */ }
     setEditing(null);
     fetchP();
   };
@@ -360,14 +361,14 @@ const SOSAlertPanel = ({ lang }: { lang: string }) => {
     try {
       const data = await api.sos.getAll();
       setAlerts(data);
-    } catch {}
+    } catch { /* API unavailable */ }
     setLoading(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
     try {
       await api.sos.updateStatus(id, status);
-    } catch {}
+    } catch { /* API unavailable */ }
     fetchAlerts();
   };
 
@@ -417,7 +418,7 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
     try {
       const data = await api.volunteers.getAll();
       setVolunteers(data);
-    } catch {}
+    } catch { /* API unavailable */ }
     setLoading(false);
   };
 
@@ -429,7 +430,7 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
   const updateStatus = async (id: string, status: string) => {
     try {
       await api.volunteers.updateStatus(id, status);
-    } catch {}
+    } catch { /* API unavailable */ }
     fetchV();
   };
 
@@ -517,7 +518,7 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
     try {
       const data = await api.communication.getAllConversations();
       setConversations(data);
-    } catch {}
+    } catch { /* API unavailable */ }
     setLoading(false);
   };
 
@@ -527,13 +528,13 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
       const data = await api.communication.getMessages(convId);
       setMessages(data);
       await api.communication.markRead(convId, 'user');
-    } catch {}
+    } catch { /* API unavailable */ }
   };
 
   const updateConvStatus = async (convId: string, status: string) => {
     try {
       await api.communication.updateConversationStatus(convId, status);
-    } catch {}
+    } catch { /* API unavailable */ }
     fetchConversations();
   };
 
@@ -548,7 +549,7 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
       });
       setReply("");
       await selectConversation(selectedConv);
-    } catch {}
+    } catch { /* API unavailable */ }
     setSending(false);
   };
 
@@ -657,7 +658,7 @@ const AnalyticsPanel = ({ lang }: { lang: string }) => {
     try {
       const data = await api.analytics.getOverview();
       setOverview(data);
-    } catch {}
+    } catch { /* API unavailable */ }
     setLoading(false);
   };
 
