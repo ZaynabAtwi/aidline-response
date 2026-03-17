@@ -1,15 +1,13 @@
 import { useState } from "react";
-import { AlertTriangle, MapPin, Send, Phone as PhoneIcon } from "lucide-react";
+import { AlertTriangle, Send, Phone as PhoneIcon, Shield } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { useGeolocation } from "@/hooks/useGeolocation";
 import { supabase } from "@/integrations/supabase/client";
 import EmergencyNumbers from "@/components/EmergencyNumbers";
 
 const SOS = () => {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
-  const { position, requestLocation } = useGeolocation();
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -19,19 +17,12 @@ const SOS = () => {
   const handleSOS = async () => {
     if (!user) return;
     setSending(true);
-    requestLocation();
 
-    const insertData: any = {
+    const { error } = await supabase.from("sos_alerts").insert({
       user_id: user.id,
       message: message || null,
       status: "active" as const,
-    };
-
-    if (position) {
-      insertData.location = `POINT(${position.longitude} ${position.latitude})`;
-    }
-
-    const { error } = await supabase.from("sos_alerts").insert(insertData);
+    });
     if (!error) setSent(true);
     setSending(false);
   };
@@ -80,7 +71,7 @@ const SOS = () => {
             </div>
 
             <div className="mb-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" />
+              <Shield className="h-4 w-4" />
               <span>{t("sos.locationAuto")}</span>
             </div>
 

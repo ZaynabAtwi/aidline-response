@@ -42,19 +42,24 @@ const Dashboard = () => {
 
   const tabs: { id: Tab; label: string; icon: typeof Building2 }[] = [
     { id: "shelters", label: lang === "ar" ? "الملاجئ" : "Shelters", icon: Building2 },
-    { id: "requests", label: lang === "ar" ? "طلبات الأدوية" : "Med Requests", icon: ClipboardList },
-    { id: "medication", label: lang === "ar" ? "المخزون" : "Inventory", icon: Pill },
-    { id: "sos", label: lang === "ar" ? "تنبيهات SOS" : "SOS Alerts", icon: AlertTriangle },
-    { id: "volunteers", label: lang === "ar" ? "المتطوعون" : "Volunteers", icon: Users },
-    { id: "messages", label: lang === "ar" ? "الرسائل الواردة" : "Messages", icon: MessageCircle },
+    { id: "requests", label: lang === "ar" ? "قائمة الطلبات" : "Request Queue", icon: ClipboardList },
+    { id: "medication", label: lang === "ar" ? "تنسيق الأدوية" : "Medication Supply", icon: Pill },
+    { id: "sos", label: lang === "ar" ? "فرز الطوارئ" : "Emergency Triage", icon: AlertTriangle },
+    { id: "volunteers", label: lang === "ar" ? "شبكة المستجيبين" : "Responder Network", icon: Users },
+    { id: "messages", label: lang === "ar" ? "المراسلة الآمنة" : "Secure Messaging", icon: MessageCircle },
   ];
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pt-20">
       <div className="mx-auto max-w-5xl px-4 pt-8">
         <h1 className="mb-6 font-heading text-3xl font-bold text-foreground">
-          {lang === "ar" ? "لوحة تحكم المنظمة" : "NGO Admin Dashboard"}
+          {lang === "ar" ? "لوحة تنسيق AidLine" : "AidLine Coordination Dashboard"}
         </h1>
+        <p className="mb-6 max-w-3xl text-sm text-muted-foreground">
+          {lang === "ar"
+            ? "تدير هذه اللوحة فرز الطلبات وتوجيهها وقبولها والتواصل الآمن مع الحالات دون الاعتماد على بيانات الموقع."
+            : "This console manages request triage, routing, acceptance, and secure case communication without relying on location data."}
+        </p>
 
         {/* Tab Navigation */}
         <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1">

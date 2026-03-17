@@ -4,6 +4,7 @@ import logo from "@/assets/logo.png";
 import { useLanguage } from "@/i18n/LanguageContext";
 import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
+import RequestRoutingOverview from "@/components/RequestRoutingOverview";
 
 const Index = () => {
   const { t } = useLanguage();
@@ -63,6 +64,8 @@ const Index = () => {
           </Link>
         )}
       </section>
+
+      <RequestRoutingOverview />
 
       {/* Stats Bar */}
       <section className="mx-auto mt-12 max-w-3xl px-4">
