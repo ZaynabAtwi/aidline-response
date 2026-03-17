@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     // Update last_used_at (minimal metadata)
     await supabase.from("ngo_access_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tokenId);
 
-    let result: any = null;
+    let result: unknown = null;
 
     switch (action) {
       case "get_medication_requests": {
@@ -88,7 +88,10 @@ Deno.serve(async (req) => {
       }
       case "update_sos_status": {
         const { id, status } = payload;
-        const update: any = { status, routing_status: inferRoutingStatus(status) };
+        const update: { status: string; routing_status: string; resolved_at?: string } = {
+          status,
+          routing_status: inferRoutingStatus(status),
+        };
         if (status === "resolved") update.resolved_at = new Date().toISOString();
         const { error } = await supabase.from("sos_alerts").update(update).eq("id", id);
         result = { success: !error };

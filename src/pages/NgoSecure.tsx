@@ -21,7 +21,11 @@ import {
 const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
 // ── API helper ──
-const ngoApi = async (token: string, action: string, payload?: any) => {
+const ngoApi = async (
+  token: string,
+  action: string,
+  payload?: Record<string, unknown>,
+) => {
   const { data, error } = await supabase.functions.invoke("ngo-secure", {
     body: { token, action, payload },
   });

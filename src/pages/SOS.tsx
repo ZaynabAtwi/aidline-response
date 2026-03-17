@@ -32,7 +32,7 @@ const SOS = () => {
     if (!user || sending) return;
     setSending(true);
 
-    const insertData: any = {
+    const insertData = {
       user_id: user.id,
       message: message || null,
       status: "active" as const,
@@ -46,7 +46,7 @@ const SOS = () => {
       triage_reason: decision.reason,
     };
 
-    const { error } = await (supabase as any).from("sos_alerts").insert(insertData);
+    const { error } = await supabase.from("sos_alerts").insert(insertData);
     if (!error) setSent(true);
     setSending(false);
   };

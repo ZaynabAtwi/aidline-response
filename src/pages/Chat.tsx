@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageCircle, Send, AlertTriangle, RefreshCw, Check, Eye } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,10 +30,6 @@ const Chat = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (user) loadConversation();
-  }, [user]);
-
-  useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
     return () => clearInterval(timer);
@@ -43,20 +39,30 @@ const Chat = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const loadConversation = async () => {
+  const fetchMessages = useCallback(async (convId: string) => {
+    const { data } = await supabase
+      .from("chat_messages")
+      .select("*")
+      .eq("conversation_id", convId)
+      .order("created_at", { ascending: true });
+    if (data) setMessages(data as Message[]);
+  }, []);
+
+  const loadConversation = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
-    const { data: convos } = await (supabase as any)
+    const { data: convos } = await supabase
       .from("chat_conversations")
       .select("id")
-      .eq("user_id", user!.id)
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1);
 
     let convId = convos?.[0]?.id;
     if (!convId) {
-      const { data: newConv } = await (supabase as any)
+      const { data: newConv } = await supabase
         .from("chat_conversations")
-        .insert({ user_id: user!.id })
+        .insert({ user_id: user.id })
         .select("id")
         .single();
       convId = newConv?.id;
@@ -67,16 +73,13 @@ const Chat = () => {
       await fetchMessages(convId);
     }
     setLoading(false);
-  };
+  }, [fetchMessages, user]);
 
-  const fetchMessages = async (convId: string) => {
-    const { data } = await (supabase as any)
-      .from("chat_messages")
-      .select("*")
-      .eq("conversation_id", convId)
-      .order("created_at", { ascending: true });
-    if (data) setMessages(data as Message[]);
-  };
+  useEffect(() => {
+    if (user) {
+      void loadConversation();
+    }
+  }, [loadConversation, user]);
 
   const handleSend = async () => {
     if (!input.trim() || !conversationId || sending) return;
@@ -89,7 +92,7 @@ const Chat = () => {
     }
 
     setSending(true);
-    const { error } = await (supabase as any).from("chat_messages").insert({
+    const { error } = await supabase.from("chat_messages").insert({
       conversation_id: conversationId,
       sender: "user",
       message: input.trim(),

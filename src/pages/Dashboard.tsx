@@ -36,10 +36,10 @@ const RoutingOverview = ({ lang }: { lang: string }) => {
     const fetchOverview = async () => {
       setLoading(true);
       const [sosResponse, medResponse] = await Promise.all([
-        (supabase as any)
+        supabase
           .from("sos_alerts")
           .select("priority_level, routing_module, routing_status, assistance_category"),
-        (supabase as any)
+        supabase
           .from("medication_requests")
           .select("priority_level, routing_module, routing_status, assistance_category"),
       ]);
@@ -276,7 +276,7 @@ const MedRequestList = ({ lang }: { lang: string }) => {
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await (supabase as any)
+    await supabase
       .from("medication_requests")
       .update({
         status,
@@ -463,10 +463,16 @@ const SOSAlertPanel = ({ lang }: { lang: string }) => {
   };
 
   const updateStatus = async (id: string, status: string) => {
-    const update: any = { status };
+    const update: {
+      status: string;
+      resolved_at?: string;
+      routing_status: RoutingStatus;
+    } = {
+      status,
+      routing_status: inferRoutingStatusFromOperationalStatus(status),
+    };
     if (status === "resolved") update.resolved_at = new Date().toISOString();
-    update.routing_status = inferRoutingStatusFromOperationalStatus(status);
-    await (supabase as any).from("sos_alerts").update(update).eq("id", id);
+    await supabase.from("sos_alerts").update(update).eq("id", id);
     fetchAlerts();
   };
 
@@ -543,7 +549,7 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
   useEffect(() => { fetchV(); }, []);
 
   const fetchV = async () => {
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from("volunteers")
       .select("*")
       .order("created_at", { ascending: false });
@@ -551,8 +557,8 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, status: string) => {
-    await supabase.from("volunteers").update({ status: status as any }).eq("id", id);
+  const updateStatus = async (id: string, status: Volunteer["status"]) => {
+    await supabase.from("volunteers").update({ status }).eq("id", id);
     fetchV();
   };
 
@@ -656,7 +662,7 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
 
   const fetchConversations = async () => {
     setLoading(true);
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from("chat_conversations")
       .select("*")
       .order("updated_at", { ascending: false });
@@ -666,7 +672,7 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
 
   const selectConversation = async (convId: string) => {
     setSelectedConv(convId);
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from("chat_messages")
       .select("*")
       .eq("conversation_id", convId)
@@ -674,7 +680,7 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
     if (data) setMessages(data as ChatMessage[]);
 
     // Mark all user messages as read
-    await (supabase as any)
+    await supabase
       .from("chat_messages")
       .update({ is_read: true })
       .eq("conversation_id", convId)
@@ -683,19 +689,25 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
   };
 
   const updateConvStatus = async (convId: string, status: string) => {
-    await (supabase as any).from("chat_conversations").update({ status, updated_at: new Date().toISOString() }).eq("id", convId);
+    await supabase
+      .from("chat_conversations")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", convId);
     fetchConversations();
   };
 
   const sendReply = async () => {
     if (!reply.trim() || !selectedConv || sending) return;
     setSending(true);
-    await (supabase as any).from("chat_messages").insert({
+    await supabase.from("chat_messages").insert({
       conversation_id: selectedConv,
       sender: "ngo",
       message: reply.trim(),
     });
-    await (supabase as any).from("chat_conversations").update({ updated_at: new Date().toISOString() }).eq("id", selectedConv);
+    await supabase
+      .from("chat_conversations")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", selectedConv);
     setReply("");
     await selectConversation(selectedConv);
     setSending(false);

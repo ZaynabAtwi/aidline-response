@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Pill, Clock, CheckCircle, AlertTriangle } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -65,24 +65,27 @@ const Medication = () => {
     medicationName: selectedMed,
   });
 
-  useEffect(() => {
-    if (user) fetchRequests();
-  }, [user]);
-
-  const fetchRequests = async () => {
-    const { data } = await (supabase as any)
+  const fetchRequests = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
       .from("medication_requests")
       .select("*")
-      .eq("user_id", user!.id)
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     if (data) setRequests(data as MedRequest[]);
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      void fetchRequests();
+    }
+  }, [fetchRequests, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMed || !user) return;
     setLoading(true);
-    const { error } = await (supabase as any).from("medication_requests").insert({
+    const { error } = await supabase.from("medication_requests").insert({
       user_id: user.id,
       medication_name: selectedMed,
       urgency,
@@ -100,7 +103,7 @@ const Medication = () => {
       setSubmitted(true);
       setSelectedMed("");
       setNotes("");
-      fetchRequests();
+      void fetchRequests();
       setTimeout(() => setSubmitted(false), 3000);
     }
     setLoading(false);

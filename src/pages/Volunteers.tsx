@@ -62,7 +62,7 @@ const Volunteers = () => {
   }, []);
 
   const fetchVolunteers = async () => {
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from("volunteers")
       .select("*")
       .order("rating", { ascending: false });
@@ -89,7 +89,7 @@ const Volunteers = () => {
     if (!user || selectedSkills.length === 0 || selectedChannels.length === 0) return;
     setSubmitting(true);
 
-    const insertData: any = {
+    const insertData = {
       user_id: user.id,
       skills: selectedSkills,
       bio: bio || null,
@@ -102,7 +102,7 @@ const Volunteers = () => {
       ),
     };
 
-    const { error } = await (supabase as any).from("volunteers").insert(insertData);
+    const { error } = await supabase.from("volunteers").insert(insertData);
     if (!error) {
       setRegistered(true);
       setShowRegister(false);
@@ -251,7 +251,15 @@ const Volunteers = () => {
             {volunteers.map((v) => {
               const config = statusConfig[v.status] || statusConfig.available;
               const StatusIcon = config.icon;
-              const statusLabel = t(`vol.${v.status}` as any) || v.status;
+              const statusKey =
+                v.status === "available"
+                  ? "vol.available"
+                  : v.status === "assigned"
+                    ? "vol.assigned"
+                    : v.status === "unavailable"
+                      ? "vol.unavailable"
+                      : null;
+              const statusLabel = statusKey ? t(statusKey) : v.status;
               return (
                 <div key={v.id} className="rounded-xl border border-border bg-card p-5">
                   <div className="flex items-start justify-between">

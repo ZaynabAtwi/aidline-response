@@ -34,7 +34,7 @@ const Onboarding = () => {
     ].filter(Boolean);
 
     // Save onboarding responses
-    await (supabase as any).from("onboarding_responses").upsert({
+    await supabase.from("onboarding_responses").upsert({
       user_id: user.id,
       needs_shelter: false,
       needs_medication: needsMedication,
@@ -47,10 +47,12 @@ const Onboarding = () => {
     }, { onConflict: "user_id" });
 
     // Assign role based on volunteering choice
-    const role = isVolunteering ? "volunteer" : "displaced_user";
-    await (supabase as any).from("user_roles").upsert({
+    const role: "volunteer" | "displaced_user" = isVolunteering
+      ? "volunteer"
+      : "displaced_user";
+    await supabase.from("user_roles").upsert({
       user_id: user.id,
-      role: role as any,
+      role,
     }, { onConflict: "user_id,role" });
 
     setOnboarded(true);
