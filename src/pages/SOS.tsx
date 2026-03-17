@@ -1,45 +1,44 @@
 import { useState } from "react";
-import { AlertTriangle, MapPin, Send, Phone as PhoneIcon } from "lucide-react";
+import { AlertTriangle, Send, Phone as PhoneIcon, Shield } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { useGeolocation } from "@/hooks/useGeolocation";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/integrations/mysql/client";
 import EmergencyNumbers from "@/components/EmergencyNumbers";
 
 const SOS = () => {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
-  const { position, requestLocation } = useGeolocation();
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [showNumbers, setShowNumbers] = useState(false);
+  const [pipelineResult, setPipelineResult] = useState<any>(null);
   const isAr = lang === "ar";
 
   const handleSOS = async () => {
     if (!user) return;
     setSending(true);
-    requestLocation();
 
-    const insertData: any = {
-      user_id: user.id,
-      message: message || null,
-      status: "active" as const,
-    };
+    try {
+      const result = await api.requests.create({
+        request_type: 'sos_emergency',
+        title: 'SOS Emergency Alert',
+        description: message || 'Emergency assistance needed',
+        urgency_level: 'critical',
+      });
 
-    if (position) {
-      insertData.location = `POINT(${position.longitude} ${position.latitude})`;
+      setPipelineResult(result);
+      setSent(true);
+    } catch (error) {
+      console.error('SOS submission error:', error);
     }
 
-    const { error } = await supabase.from("sos_alerts").insert(insertData);
-    if (!error) setSent(true);
     setSending(false);
   };
 
   if (showNumbers) {
     return (
       <div className="min-h-screen bg-background pb-24 md:pt-20">
-        {/* Sticky back button */}
         <div className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md md:top-16">
           <div className="mx-auto flex max-w-2xl items-center px-4 py-3">
             <button
@@ -67,7 +66,11 @@ const SOS = () => {
               <AlertTriangle className="h-12 w-12 text-destructive" />
             </div>
             <h1 className="mb-2 font-heading text-3xl font-bold text-foreground">{t("sos.title")}</h1>
-            <p className="mb-8 text-muted-foreground">{t("sos.subtitle")}</p>
+            <p className="mb-8 text-muted-foreground">
+              {isAr
+                ? "أرسل تنبيه طوارئ لجميع المستجيبين عبر المنصة."
+                : "Send an emergency alert to all responders through the platform."}
+            </p>
 
             <div className="mb-6">
               <textarea
@@ -80,8 +83,8 @@ const SOS = () => {
             </div>
 
             <div className="mb-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" />
-              <span>{t("sos.locationAuto")}</span>
+              <Shield className="h-4 w-4" />
+              <span>{isAr ? "لا يتم جمع بيانات الموقع" : "No location data collected"}</span>
             </div>
 
             <button
@@ -95,7 +98,6 @@ const SOS = () => {
               </span>
             </button>
 
-            {/* Emergency Numbers Button */}
             <button
               onClick={() => setShowNumbers(true)}
               className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl border-2 border-destructive/40 bg-destructive/10 py-4 font-heading text-base font-semibold text-destructive transition-colors hover:bg-destructive/15"
@@ -110,9 +112,42 @@ const SOS = () => {
               <Send className="h-12 w-12 text-success" />
             </div>
             <h1 className="mb-2 font-heading text-3xl font-bold text-foreground">{t("sos.sent")}</h1>
-            <p className="mb-6 text-muted-foreground">{t("sos.sentMessage")}</p>
+            <p className="mb-4 text-muted-foreground">
+              {isAr
+                ? "تم إرسال طلب الطوارئ وتصنيفه وتوجيهه تلقائياً إلى المستجيبين المناسبين."
+                : "Your emergency request has been submitted, classified, and automatically routed to appropriate responders."}
+            </p>
+
+            {pipelineResult?.pipeline && (
+              <div className="mb-6 rounded-xl border border-border bg-card p-4 text-start">
+                <h3 className="mb-2 text-sm font-semibold text-foreground">
+                  {isAr ? "حالة المعالجة" : "Processing Status"}
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-success" />
+                    <span className="text-muted-foreground">
+                      {isAr ? "تم التصنيف:" : "Classified:"}{" "}
+                      <span className="font-medium text-foreground">
+                        {pipelineResult.classification?.category || 'medical_emergency'}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-success" />
+                    <span className="text-muted-foreground">
+                      {isAr ? "تم التوجيه إلى:" : "Routed to:"}{" "}
+                      <span className="font-medium text-foreground">
+                        {pipelineResult.routes?.length || 0} {isAr ? "مستجيب(ين)" : "responder(s)"}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button
-              onClick={() => setSent(false)}
+              onClick={() => { setSent(false); setPipelineResult(null); }}
               className="rounded-xl border border-border bg-card px-8 py-3 font-medium text-foreground transition-colors hover:bg-secondary"
             >
               {t("sos.sendAnother")}

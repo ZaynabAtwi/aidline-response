@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { Pill, Clock, CheckCircle, AlertTriangle } from "lucide-react";
+import { Pill, Clock, CheckCircle, AlertTriangle, ArrowRight } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-
+import { api } from "@/integrations/mysql/client";
+import type { ServiceRequest, PipelineResult } from "@/integrations/mysql/types";
 
 const medications = [
   "Insulin (Rapid-acting)", "Insulin (Long-acting)", "Metformin", "Amlodipine",
@@ -19,20 +19,16 @@ const urgencyColors: Record<string, string> = {
 };
 
 const statusIcons: Record<string, typeof CheckCircle> = {
-  pending: Clock,
-  approved: Clock,
-  fulfilled: CheckCircle,
+  submitted: Clock,
+  classifying: Clock,
+  classified: Clock,
+  routing: Clock,
+  routed: Clock,
+  accepted: CheckCircle,
+  in_progress: Clock,
+  resolved: CheckCircle,
   cancelled: AlertTriangle,
 };
-
-interface MedRequest {
-  id: string;
-  medication_name: string;
-  urgency: string;
-  status: string;
-  created_at: string;
-  notes: string | null;
-}
 
 const Medication = () => {
   const { t } = useLanguage();
@@ -41,39 +37,46 @@ const Medication = () => {
   const [urgency, setUrgency] = useState("medium");
   const [notes, setNotes] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const [requests, setRequests] = useState<MedRequest[]>([]);
+  const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const [lastResult, setLastResult] = useState<PipelineResult | null>(null);
 
   useEffect(() => {
     if (user) fetchRequests();
   }, [user]);
 
   const fetchRequests = async () => {
-    const { data } = await supabase
-      .from("medication_requests")
-      .select("*")
-      .eq("user_id", user!.id)
-      .order("created_at", { ascending: false });
-    if (data) setRequests(data as MedRequest[]);
+    try {
+      const data = await api.requests.list({ type: 'medication_need' });
+      if (data.requests) setRequests(data.requests);
+    } catch (error) {
+      console.error('Failed to fetch requests:', error);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMed || !user) return;
     setLoading(true);
-    const { error } = await supabase.from("medication_requests").insert({
-      user_id: user.id,
-      medication_name: selectedMed,
-      urgency: urgency as any,
-      notes: notes || null,
-    });
-    if (!error) {
+
+    try {
+      const result = await api.requests.create({
+        request_type: 'medication_need',
+        title: selectedMed,
+        description: notes || `Medication request: ${selectedMed}`,
+        urgency_level: urgency,
+      });
+
+      setLastResult(result);
       setSubmitted(true);
       setSelectedMed("");
       setNotes("");
       fetchRequests();
-      setTimeout(() => setSubmitted(false), 3000);
+      setTimeout(() => setSubmitted(false), 5000);
+    } catch (error) {
+      console.error('Failed to submit request:', error);
     }
+
     setLoading(false);
   };
 
@@ -140,6 +143,22 @@ const Medication = () => {
               </button>
             </form>
 
+            {lastResult?.pipeline && submitted && (
+              <div className="mb-6 rounded-xl border border-success/30 bg-success/10 p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-success">
+                  <CheckCircle className="h-4 w-4" />
+                  {lastResult.pipeline.message}
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Submitted</span>
+                  <ArrowRight className="h-3 w-3" />
+                  <span>AI Classified</span>
+                  <ArrowRight className="h-3 w-3" />
+                  <span>Routed to {lastResult.routes?.length || 0} provider(s)</span>
+                </div>
+              </div>
+            )}
+
             <h2 className="mb-4 font-heading text-lg font-semibold text-foreground">{t("med.yourRequests")}</h2>
             <div className="space-y-3">
               {requests.map((r) => {
@@ -147,14 +166,15 @@ const Medication = () => {
                 return (
                   <div key={r.id} className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
                     <div>
-                      <p className="font-medium text-foreground">{r.medication_name}</p>
+                      <p className="font-medium text-foreground">{r.title}</p>
                       <p className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</p>
+                      <p className="mt-1 text-xs text-muted-foreground capitalize">{r.status.replace('_', ' ')}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColors[r.urgency]}`}>
-                        {urgencyLabels[r.urgency as keyof typeof urgencyLabels] || r.urgency}
+                      <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColors[r.urgency_level]}`}>
+                        {urgencyLabels[r.urgency_level as keyof typeof urgencyLabels] || r.urgency_level}
                       </span>
-                      <StatusIcon className={`h-5 w-5 ${r.status === "fulfilled" ? "text-success" : "text-accent"}`} />
+                      <StatusIcon className={`h-5 w-5 ${r.status === "resolved" ? "text-success" : "text-accent"}`} />
                     </div>
                   </div>
                 );

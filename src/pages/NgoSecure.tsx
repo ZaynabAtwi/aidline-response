@@ -1,30 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/integrations/mysql/client";
 import {
   Shield, Lock, Building2, Pill, AlertTriangle, MessageSquare,
   Save, X, Edit2, Clock, RefreshCw, LogOut, Send
 } from "lucide-react";
+import type { ServiceRequest, Shelter, CoordinationNote } from "@/integrations/mysql/types";
 
-const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+const INACTIVITY_TIMEOUT = 10 * 60 * 1000;
 
-// ── API helper ──
-const ngoApi = async (token: string, action: string, payload?: any) => {
-  const { data, error } = await supabase.functions.invoke("ngo-secure", {
-    body: { token, action, payload },
-  });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data?.data;
-};
-
-type Tab = "med_requests" | "sos" | "shelters" | "notes";
-
-interface Shelter { id: string; name: string; address: string | null; capacity: number; available_spots: number; is_operational: boolean; }
-interface MedReq { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; }
-interface SOSAlert { id: string; message: string | null; status: string; created_at: string; }
-interface Note { id: string; content: string; created_at: string; }
+type Tab = "requests" | "sos" | "shelters" | "notes";
 
 const urgencyColor: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
@@ -33,26 +18,25 @@ const urgencyColor: Record<string, string> = {
   critical: "bg-red-500/15 text-red-400",
 };
 
-const sosColor: Record<string, string> = {
-  active: "bg-red-500/15 text-red-400",
-  responding: "bg-amber-500/15 text-amber-400",
+const statusColor: Record<string, string> = {
+  submitted: "bg-muted text-muted-foreground",
+  routed: "bg-amber-500/15 text-amber-400",
+  accepted: "bg-emerald-500/15 text-emerald-400",
+  in_progress: "bg-blue-500/15 text-blue-400",
   resolved: "bg-emerald-500/15 text-emerald-400",
   cancelled: "bg-muted text-muted-foreground",
 };
 
 const NgoSecure = () => {
   const { lang } = useLanguage();
-  const navigate = useNavigate();
   const isAr = lang === "ar";
 
-  // Auth state
   const [token, setToken] = useState("");
   const [tokenInput, setTokenInput] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
-  // Inactivity timer
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const resetTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -74,7 +58,6 @@ const NgoSecure = () => {
     };
   }, [authenticated, resetTimer]);
 
-  // No-index meta tag
   useEffect(() => {
     const meta = document.createElement("meta");
     meta.name = "robots";
@@ -83,21 +66,16 @@ const NgoSecure = () => {
     return () => { document.head.removeChild(meta); };
   }, []);
 
-  // Tab state
   const [tab, setTab] = useState<Tab>("sos");
-
-  // Data
-  const [medRequests, setMedRequests] = useState<MedReq[]>([]);
-  const [sosAlerts, setSosAlerts] = useState<SOSAlert[]>([]);
+  const [requests, setRequests] = useState<ServiceRequest[]>([]);
+  const [sosAlerts, setSosAlerts] = useState<ServiceRequest[]>([]);
   const [shelters, setShelters] = useState<Shelter[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [notes, setNotes] = useState<CoordinationNote[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Shelter editing
   const [editingShelter, setEditingShelter] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({ capacity: 0, available_spots: 0, is_operational: true });
 
-  // Notes
   const [noteInput, setNoteInput] = useState("");
   const [addingNote, setAddingNote] = useState(false);
 
@@ -105,7 +83,7 @@ const NgoSecure = () => {
     setAuthLoading(true);
     setAuthError("");
     try {
-      await ngoApi(tokenInput, "get_sos_alerts");
+      await api.auth.validateNgoToken(tokenInput);
       setToken(tokenInput);
       setAuthenticated(true);
     } catch {
@@ -124,16 +102,17 @@ const NgoSecure = () => {
     if (!token) return;
     setLoading(true);
     try {
-      const [meds, sos, shel, n] = await Promise.all([
-        ngoApi(token, "get_medication_requests"),
-        ngoApi(token, "get_sos_alerts"),
-        ngoApi(token, "get_shelters"),
-        ngoApi(token, "get_notes"),
+      const [reqData, shelData, noteData] = await Promise.all([
+        api.requests.listAll({}),
+        api.providers.shelters.list(),
+        api.providers.notes.list(),
       ]);
-      setMedRequests(meds || []);
-      setSosAlerts(sos || []);
-      setShelters(shel || []);
-      setNotes(n || []);
+
+      const allRequests = reqData.requests || [];
+      setRequests(allRequests.filter((r: ServiceRequest) => r.request_type === 'medication_need'));
+      setSosAlerts(allRequests.filter((r: ServiceRequest) => r.request_type === 'sos_emergency'));
+      setShelters(shelData.shelters || []);
+      setNotes(noteData.notes || []);
     } catch { /* silent */ }
     setLoading(false);
   }, [token]);
@@ -143,31 +122,27 @@ const NgoSecure = () => {
   }, [authenticated, fetchData]);
 
   const saveShelter = async (id: string) => {
-    await ngoApi(token, "update_shelter", { id, ...editValues });
+    await api.providers.shelters.update(id, editValues);
     setEditingShelter(null);
     fetchData();
   };
 
-  const updateSos = async (id: string, status: string) => {
-    await ngoApi(token, "update_sos_status", { id, status });
-    fetchData();
-  };
-
-  const updateMed = async (id: string, status: string) => {
-    await ngoApi(token, "update_med_status", { id, status });
+  const updateRequestStatus = async (id: string, status: string) => {
+    await api.requests.updateStatus(id, status);
     fetchData();
   };
 
   const addNote = async () => {
     if (!noteInput.trim()) return;
     setAddingNote(true);
-    const result = await ngoApi(token, "add_note", { content: noteInput.trim() });
-    if (result) setNotes([result, ...notes]);
+    try {
+      const result = await api.providers.notes.create({ content: noteInput.trim() });
+      if (result.note) setNotes([result.note, ...notes]);
+    } catch { /* silent */ }
     setNoteInput("");
     setAddingNote(false);
   };
 
-  // ─── LOGIN SCREEN ───
   if (!authenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[hsl(220,25%,6%)] px-4">
@@ -217,17 +192,15 @@ const NgoSecure = () => {
     );
   }
 
-  // ─── SECURE DASHBOARD ───
   const tabs: { id: Tab; label: string; icon: typeof Building2; count?: number }[] = [
-    { id: "sos", label: isAr ? "تنبيهات SOS" : "SOS Alerts", icon: AlertTriangle, count: sosAlerts.filter(a => a.status === "active").length },
-    { id: "med_requests", label: isAr ? "طلبات الأدوية" : "Med Requests", icon: Pill, count: medRequests.filter(m => m.status === "pending").length },
+    { id: "sos", label: isAr ? "تنبيهات SOS" : "SOS Alerts", icon: AlertTriangle, count: sosAlerts.filter(a => !['resolved', 'cancelled'].includes(a.status)).length },
+    { id: "requests", label: isAr ? "طلبات الأدوية" : "Med Requests", icon: Pill, count: requests.filter(m => m.status === "submitted" || m.status === "routed").length },
     { id: "shelters", label: isAr ? "الملاجئ" : "Shelters", icon: Building2 },
     { id: "notes", label: isAr ? "ملاحظات التنسيق" : "Coordination Notes", icon: MessageSquare },
   ];
 
   return (
     <div className="min-h-screen bg-[hsl(220,25%,6%)]">
-      {/* Top bar */}
       <div className="border-b border-[hsl(220,15%,15%)] bg-[hsl(220,22%,8%)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
@@ -249,7 +222,6 @@ const NgoSecure = () => {
       </div>
 
       <div className="mx-auto max-w-5xl px-4 py-6">
-        {/* Tabs */}
         <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,8%)] p-1">
           {tabs.map((t) => (
             <button
@@ -274,7 +246,6 @@ const NgoSecure = () => {
           ))}
         </div>
 
-        {/* SOS Alerts */}
         {tab === "sos" && (
           <div className="space-y-3">
             {sosAlerts.length === 0 && <EmptyBox text={isAr ? "لا توجد تنبيهات" : "No alerts"} />}
@@ -282,28 +253,28 @@ const NgoSecure = () => {
               <div key={a.id} className="rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,10%)] p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm text-[hsl(210,20%,92%)]">{a.message || (isAr ? "تنبيه طوارئ" : "Emergency alert")}</p>
+                    <p className="text-sm text-[hsl(210,20%,92%)]">{a.description || (isAr ? "تنبيه طوارئ" : "Emergency alert")}</p>
                     <p className="mt-1 flex items-center gap-1 text-xs text-[hsl(215,15%,45%)]">
                       <Clock className="h-3 w-3" />
                       {new Date(a.created_at).toLocaleString()}
                     </p>
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${sosColor[a.status] || ""}`}>
-                    {a.status}
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${statusColor[a.status] || ""}`}>
+                    {a.status.replace(/_/g, ' ')}
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {(["active", "responding", "resolved", "cancelled"] as const).map((s) => (
+                  {(["accepted", "in_progress", "resolved", "cancelled"] as const).map((s) => (
                     <button
                       key={s}
-                      onClick={() => updateSos(a.id, s)}
+                      onClick={() => updateRequestStatus(a.id, s)}
                       className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-all ${
                         a.status === s
-                          ? "ring-2 ring-[hsl(185,70%,42%)] " + (sosColor[s] || "")
+                          ? "ring-2 ring-[hsl(185,70%,42%)] " + (statusColor[s] || "")
                           : "bg-[hsl(220,18%,16%)] text-[hsl(215,15%,55%)] hover:text-[hsl(210,20%,85%)]"
                       }`}
                     >
-                      {s}
+                      {s.replace(/_/g, ' ')}
                     </button>
                   ))}
                 </div>
@@ -312,34 +283,33 @@ const NgoSecure = () => {
           </div>
         )}
 
-        {/* Med Requests */}
-        {tab === "med_requests" && (
+        {tab === "requests" && (
           <div className="space-y-3">
-            {medRequests.length === 0 && <EmptyBox text={isAr ? "لا توجد طلبات" : "No requests"} />}
-            {medRequests.map((r) => (
+            {requests.length === 0 && <EmptyBox text={isAr ? "لا توجد طلبات" : "No requests"} />}
+            {requests.map((r) => (
               <div key={r.id} className="rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,10%)] p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="font-heading text-sm font-semibold text-[hsl(210,20%,92%)]">{r.medication_name}</h3>
+                    <h3 className="font-heading text-sm font-semibold text-[hsl(210,20%,92%)]">{r.title}</h3>
                     <p className="mt-0.5 text-xs text-[hsl(215,15%,45%)]">{new Date(r.created_at).toLocaleString()}</p>
-                    {r.notes && <p className="mt-1 text-xs text-[hsl(215,15%,55%)]">{r.notes}</p>}
+                    {r.description && <p className="mt-1 text-xs text-[hsl(215,15%,55%)]">{r.description}</p>}
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColor[r.urgency] || ""}`}>
-                    {r.urgency}
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColor[r.urgency_level] || ""}`}>
+                    {r.urgency_level}
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {(["pending", "approved", "fulfilled", "cancelled"] as const).map((s) => (
+                  {(["accepted", "in_progress", "resolved", "cancelled"] as const).map((s) => (
                     <button
                       key={s}
-                      onClick={() => updateMed(r.id, s)}
+                      onClick={() => updateRequestStatus(r.id, s)}
                       className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-all ${
                         r.status === s
                           ? "ring-2 ring-[hsl(185,70%,42%)] bg-[hsl(185,70%,42%)]/10 text-[hsl(185,70%,50%)]"
                           : "bg-[hsl(220,18%,16%)] text-[hsl(215,15%,55%)] hover:text-[hsl(210,20%,85%)]"
                       }`}
                     >
-                      {s}
+                      {s.replace(/_/g, ' ')}
                     </button>
                   ))}
                 </div>
@@ -348,7 +318,6 @@ const NgoSecure = () => {
           </div>
         )}
 
-        {/* Shelters */}
         {tab === "shelters" && (
           <div className="space-y-3">
             {shelters.length === 0 && <EmptyBox text={isAr ? "لا توجد ملاجئ" : "No shelters"} />}
@@ -413,7 +382,6 @@ const NgoSecure = () => {
           </div>
         )}
 
-        {/* Coordination Notes */}
         {tab === "notes" && (
           <div>
             <div className="mb-4 flex gap-2">
@@ -445,7 +413,6 @@ const NgoSecure = () => {
         )}
       </div>
 
-      {/* Inactivity warning bar */}
       <div className="fixed bottom-0 start-0 end-0 border-t border-[hsl(220,15%,15%)] bg-[hsl(220,22%,8%)] px-4 py-2 text-center text-xs text-[hsl(215,15%,40%)]">
         <Shield className="mb-0.5 inline h-3 w-3" /> {isAr ? "خروج تلقائي بعد 10 دقائق من عدم النشاط" : "Auto-logout after 10 minutes of inactivity"}
       </div>

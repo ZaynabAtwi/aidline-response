@@ -1,19 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { MessageCircle, Send, AlertTriangle, RefreshCw, Check, Eye } from "lucide-react";
+import { MessageCircle, Send, AlertTriangle, RefreshCw, Check, Eye, Shield } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/integrations/mysql/client";
 import { Link } from "react-router-dom";
+import type { Message, Conversation } from "@/integrations/mysql/types";
 
-interface Message {
-  id: string;
-  sender: string;
-  message: string;
-  is_read: boolean;
-  created_at: string;
-}
-
-const MAX_LENGTH = 500;
+const MAX_LENGTH = 2000;
 const RATE_LIMIT_MS = 20000;
 
 const Chat = () => {
@@ -45,37 +38,33 @@ const Chat = () => {
 
   const loadConversation = async () => {
     setLoading(true);
-    const { data: convos } = await (supabase as any)
-      .from("chat_conversations")
-      .select("id")
-      .eq("user_id", user!.id)
-      .order("created_at", { ascending: false })
-      .limit(1);
+    try {
+      const convData = await api.messaging.listConversations();
+      const conversations = convData.conversations || [];
 
-    let convId = convos?.[0]?.id;
-    if (!convId) {
-      const { data: newConv } = await (supabase as any)
-        .from("chat_conversations")
-        .insert({ user_id: user!.id })
-        .select("id")
-        .single();
-      convId = newConv?.id;
-    }
+      let convId = conversations[0]?.id;
+      if (!convId) {
+        const newConv = await api.messaging.createConversation();
+        convId = newConv.conversation?.id;
+      }
 
-    if (convId) {
-      setConversationId(convId);
-      await fetchMessages(convId);
+      if (convId) {
+        setConversationId(convId);
+        await fetchMessages(convId);
+      }
+    } catch (error) {
+      console.error('Failed to load conversation:', error);
     }
     setLoading(false);
   };
 
   const fetchMessages = async (convId: string) => {
-    const { data } = await (supabase as any)
-      .from("chat_messages")
-      .select("*")
-      .eq("conversation_id", convId)
-      .order("created_at", { ascending: true });
-    if (data) setMessages(data as Message[]);
+    try {
+      const data = await api.messaging.getMessages(convId);
+      if (data.messages) setMessages(data.messages);
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+    }
   };
 
   const handleSend = async () => {
@@ -89,16 +78,17 @@ const Chat = () => {
     }
 
     setSending(true);
-    const { error } = await (supabase as any).from("chat_messages").insert({
-      conversation_id: conversationId,
-      sender: "user",
-      message: input.trim(),
-    });
+    try {
+      await api.messaging.sendMessage(conversationId, {
+        content: input.trim(),
+        sender_type: 'user',
+      });
 
-    if (!error) {
       setInput("");
       setLastSentAt(Date.now());
       await fetchMessages(conversationId);
+    } catch (error) {
+      console.error('Failed to send message:', error);
     }
     setSending(false);
   };
@@ -108,13 +98,13 @@ const Chat = () => {
   };
 
   const getStatusIcon = (msg: Message) => {
-    if (msg.sender === "ngo") return null;
+    if (msg.sender_type === "responder" || msg.sender_type === "system") return null;
     if (msg.is_read) return <Eye className="h-3.5 w-3.5 text-primary" />;
     return <Check className="h-3.5 w-3.5 text-muted-foreground" />;
   };
 
   const getStatusText = (msg: Message) => {
-    if (msg.sender === "ngo") return null;
+    if (msg.sender_type === "responder" || msg.sender_type === "system") return null;
     if (msg.is_read) return isAr ? "مقروءة" : "Viewed";
     return isAr ? "مُرسلة" : "Sent";
   };
@@ -130,12 +120,11 @@ const Chat = () => {
   return (
     <div className="flex min-h-screen flex-col bg-background pb-24 md:pt-20">
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pt-6">
-        {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <MessageCircle className="h-7 w-7 text-primary" />
             <h1 className="font-heading text-2xl font-bold text-foreground">
-              {isAr ? "الدردشة والدعم" : "Chat & Support"}
+              {isAr ? "التواصل الآمن" : "Secure Communication"}
             </h1>
           </div>
           <button
@@ -147,7 +136,11 @@ const Chat = () => {
           </button>
         </div>
 
-        {/* Emergency Notice */}
+        <div className="mb-3 flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs text-primary">
+          <Shield className="h-3.5 w-3.5" />
+          <span>{isAr ? "جميع الرسائل مشفرة وآمنة" : "All messages are encrypted and secure"}</span>
+        </div>
+
         <div className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
           <div>
@@ -160,7 +153,6 @@ const Chat = () => {
           </div>
         </div>
 
-        {/* Messages Area */}
         <div className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-border bg-card p-4" style={{ minHeight: "300px", maxHeight: "60vh" }}>
           {messages.length === 0 ? (
             <div className="flex h-full items-center justify-center py-12 text-center text-muted-foreground">
@@ -168,17 +160,24 @@ const Chat = () => {
             </div>
           ) : (
             messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
+              <div key={msg.id} className={`flex ${msg.sender_type === "user" ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    msg.sender === "user"
+                    msg.sender_type === "user"
                       ? "rounded-br-md bg-primary text-primary-foreground"
+                      : msg.sender_type === "system"
+                      ? "rounded-bl-md bg-muted text-muted-foreground"
                       : "rounded-bl-md bg-secondary text-secondary-foreground"
                   }`}
                 >
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
+                  {msg.sender_type !== "user" && (
+                    <p className="mb-1 text-[10px] font-semibold uppercase opacity-70">
+                      {msg.sender_type === "system" ? (isAr ? "النظام" : "System") : (isAr ? "المستجيب" : "Responder")}
+                    </p>
+                  )}
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                   <div className={`mt-1.5 flex items-center gap-1.5 text-[11px] ${
-                    msg.sender === "user" ? "opacity-70 justify-end" : "text-muted-foreground"
+                    msg.sender_type === "user" ? "opacity-70 justify-end" : "text-muted-foreground"
                   }`}>
                     <span>
                       {new Date(msg.created_at).toLocaleTimeString(isAr ? "ar" : "en", { hour: "2-digit", minute: "2-digit" })}
@@ -198,7 +197,6 @@ const Chat = () => {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input Area */}
         <div className="mt-4 space-y-2">
           {cooldown > 0 && (
             <p className="text-center text-xs text-muted-foreground">

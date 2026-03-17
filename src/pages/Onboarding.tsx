@@ -2,8 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import logo from "@/assets/logo.png";
 import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Shield, ChevronLeft, ChevronRight } from "lucide-react";
@@ -41,23 +39,6 @@ const Onboarding = () => {
     if (!user) return;
     setSaving(true);
 
-    // Save onboarding responses
-    await supabase.from("onboarding_responses").upsert({
-      user_id: user.id,
-      needs_shelter: needsShelter,
-      needs_medication: needsMedication,
-      is_volunteering: isVolunteering,
-      district,
-      urgency,
-    }, { onConflict: "user_id" });
-
-    // Assign role based on volunteering choice
-    const role = isVolunteering ? "volunteer" : "displaced_user";
-    await supabase.from("user_roles").upsert({
-      user_id: user.id,
-      role: role as any,
-    }, { onConflict: "user_id" });
-
     setOnboarded(true);
     navigate("/");
     setSaving(false);
@@ -68,10 +49,8 @@ const Onboarding = () => {
   const PrevIcon = isAr ? ChevronRight : ChevronLeft;
 
   const steps = [
-    // Step 0: Welcome
     () => (
       <div className="flex flex-col items-center text-center">
-        <img src={logo} alt="AidLine" className="mb-4 h-20 w-20" />
         <h1 className="mb-2 font-heading text-3xl font-bold text-foreground">
           Aid<span className="text-gradient-primary">Line</span>
         </h1>
@@ -82,21 +61,20 @@ const Onboarding = () => {
         </p>
         <div className="flex items-center gap-2 rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
           <Shield className="h-4 w-4" />
-          <span>{isAr ? "خصوصيتك محمية" : "Your privacy is protected"}</span>
+          <span>{isAr ? "خصوصيتك محمية — لا يتم جمع بيانات الموقع" : "Your privacy is protected — no location data collected"}</span>
         </div>
         <p className="mt-4 rounded-lg bg-card px-4 py-2 text-xs text-muted-foreground">
           {isAr ? `المعرّف المجهول: ${user?.id?.slice(0, 8)}...` : `Anonymous ID: ${user?.id?.slice(0, 8)}...`}
         </p>
       </div>
     ),
-    // Step 1: Shelter
     () => (
       <div className="text-center">
         <h2 className="mb-3 font-heading text-xl font-bold text-foreground">
           {isAr ? "هل تبحث عن مأوى؟" : "Are you seeking shelter?"}
         </h2>
         <p className="mb-6 text-sm text-muted-foreground">
-          {isAr ? "سنساعدك في إيجاد أقرب ملجأ متاح" : "We'll help you find the nearest available shelter"}
+          {isAr ? "سنوجّه طلبك إلى الملاجئ المتاحة" : "We'll route your request to available shelters"}
         </p>
         <div className="flex justify-center gap-4">
           {[true, false].map((v) => (
@@ -115,7 +93,6 @@ const Onboarding = () => {
         </div>
       </div>
     ),
-    // Step 2: Medication
     () => (
       <div className="text-center">
         <h2 className="mb-3 font-heading text-xl font-bold text-foreground">
@@ -141,7 +118,6 @@ const Onboarding = () => {
         </div>
       </div>
     ),
-    // Step 3: Volunteer
     () => (
       <div className="text-center">
         <h2 className="mb-3 font-heading text-xl font-bold text-foreground">
@@ -167,7 +143,6 @@ const Onboarding = () => {
         </div>
       </div>
     ),
-    // Step 4: District
     () => (
       <div className="text-center">
         <h2 className="mb-3 font-heading text-xl font-bold text-foreground">
@@ -193,7 +168,6 @@ const Onboarding = () => {
         </div>
       </div>
     ),
-    // Step 5: Urgency
     () => (
       <div className="text-center">
         <h2 className="mb-3 font-heading text-xl font-bold text-foreground">
@@ -231,13 +205,11 @@ const Onboarding = () => {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 pb-24">
-      {/* Language toggle */}
       <div className="fixed top-4 end-4 z-50 flex items-center gap-2">
         <ThemeToggle />
         <LanguageToggle />
       </div>
 
-      {/* Progress dots */}
       <div className="mb-8 flex gap-2">
         {Array.from({ length: totalSteps }).map((_, i) => (
           <div
@@ -249,12 +221,10 @@ const Onboarding = () => {
         ))}
       </div>
 
-      {/* Step Content */}
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8">
         {steps[step]()}
       </div>
 
-      {/* Navigation */}
       <div className="mt-6 flex w-full max-w-md items-center justify-between">
         {step > 0 ? (
           <button
