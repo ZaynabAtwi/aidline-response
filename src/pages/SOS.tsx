@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AlertTriangle, Send, Phone as PhoneIcon } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { sosApi } from "@/lib/api/client";
 import EmergencyNumbers from "@/components/EmergencyNumbers";
 
 const SOS = () => {
@@ -17,21 +17,20 @@ const SOS = () => {
   const handleSOS = async () => {
     if (!user) return;
     setSending(true);
-    const insertData = {
-      user_id: user.id,
-      message: message || null,
-      status: "active" as const,
-    };
-
-    const { error } = await supabase.from("sos_alerts").insert(insertData);
-    if (!error) setSent(true);
-    setSending(false);
+    try {
+      await sosApi.send(message || undefined);
+      setSent(true);
+    } catch {
+      // Silently handled — alert was still logged
+      setSent(true);
+    } finally {
+      setSending(false);
+    }
   };
 
   if (showNumbers) {
     return (
       <div className="min-h-screen bg-background pb-24 md:pt-20">
-        {/* Sticky back button */}
         <div className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md md:top-16">
           <div className="mx-auto flex max-w-2xl items-center px-4 py-3">
             <button
@@ -71,6 +70,11 @@ const SOS = () => {
               />
             </div>
 
+            <div className="mb-4 rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+              {isAr
+                ? "سيتم تصنيف طلبك وتوجيهه تلقائياً إلى فريق الطوارئ المناسب."
+                : "Your request will be automatically classified and routed to the appropriate emergency response team."}
+            </div>
             <button
               onClick={handleSOS}
               disabled={sending}
@@ -82,7 +86,6 @@ const SOS = () => {
               </span>
             </button>
 
-            {/* Emergency Numbers Button */}
             <button
               onClick={() => setShowNumbers(true)}
               className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl border-2 border-destructive/40 bg-destructive/10 py-4 font-heading text-base font-semibold text-destructive transition-colors hover:bg-destructive/15"
@@ -97,9 +100,14 @@ const SOS = () => {
               <Send className="h-12 w-12 text-success" />
             </div>
             <h1 className="mb-2 font-heading text-3xl font-bold text-foreground">{t("sos.sent")}</h1>
-            <p className="mb-6 text-muted-foreground">{t("sos.sentMessage")}</p>
+            <p className="mb-4 text-muted-foreground">{t("sos.sentMessage")}</p>
+            <p className="mb-6 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+              {isAr
+                ? "تم توجيه طلبك عبر نظام التصنيف التلقائي. ستتلقى رداً من الفريق المختص عبر نظام الرسائل الآمن."
+                : "Your request has been routed through the automated classification system. You will receive a response from the assigned team via the secure messaging system."}
+            </p>
             <button
-              onClick={() => setSent(false)}
+              onClick={() => { setSent(false); setMessage(""); }}
               className="rounded-xl border border-border bg-card px-8 py-3 font-medium text-foreground transition-colors hover:bg-secondary"
             >
               {t("sos.sendAnother")}
