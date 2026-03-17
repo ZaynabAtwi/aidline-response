@@ -185,37 +185,67 @@ export type Database = {
       }
       medication_requests: {
         Row: {
+          assistance_category: Database["public"]["Enums"]["assistance_category"]
+          classification_summary: string | null
           created_at: string
+          escalation_target: Database["public"]["Enums"]["routing_module"] | null
           fulfilled_by: string | null
           id: string
           medication_name: string
           notes: string | null
           pharmacy_id: string | null
+          priority_level: Database["public"]["Enums"]["urgency_level"]
+          required_responder: Database["public"]["Enums"]["responder_type"]
+          responder_notes: string | null
+          routing_module: Database["public"]["Enums"]["routing_module"]
+          routing_status: Database["public"]["Enums"]["routing_status"]
+          stock_status: string
           status: Database["public"]["Enums"]["request_status"]
+          triage_reason: string | null
           updated_at: string
           urgency: Database["public"]["Enums"]["urgency_level"]
           user_id: string
         }
         Insert: {
+          assistance_category?: Database["public"]["Enums"]["assistance_category"]
+          classification_summary?: string | null
           created_at?: string
+          escalation_target?: Database["public"]["Enums"]["routing_module"] | null
           fulfilled_by?: string | null
           id?: string
           medication_name: string
           notes?: string | null
           pharmacy_id?: string | null
+          priority_level?: Database["public"]["Enums"]["urgency_level"]
+          required_responder?: Database["public"]["Enums"]["responder_type"]
+          responder_notes?: string | null
+          routing_module?: Database["public"]["Enums"]["routing_module"]
+          routing_status?: Database["public"]["Enums"]["routing_status"]
+          stock_status?: string
           status?: Database["public"]["Enums"]["request_status"]
+          triage_reason?: string | null
           updated_at?: string
           urgency?: Database["public"]["Enums"]["urgency_level"]
           user_id: string
         }
         Update: {
+          assistance_category?: Database["public"]["Enums"]["assistance_category"]
+          classification_summary?: string | null
           created_at?: string
+          escalation_target?: Database["public"]["Enums"]["routing_module"] | null
           fulfilled_by?: string | null
           id?: string
           medication_name?: string
           notes?: string | null
           pharmacy_id?: string | null
+          priority_level?: Database["public"]["Enums"]["urgency_level"]
+          required_responder?: Database["public"]["Enums"]["responder_type"]
+          responder_notes?: string | null
+          routing_module?: Database["public"]["Enums"]["routing_module"]
+          routing_status?: Database["public"]["Enums"]["routing_status"]
+          stock_status?: string
           status?: Database["public"]["Enums"]["request_status"]
+          triage_reason?: string | null
           updated_at?: string
           urgency?: Database["public"]["Enums"]["urgency_level"]
           user_id?: string
@@ -266,31 +296,40 @@ export type Database = {
       onboarding_responses: {
         Row: {
           created_at: string
-          district: string | null
           id: string
           is_volunteering: boolean
+          needs_healthcare: boolean
+          needs_humanitarian_aid: boolean
           needs_medication: boolean
           needs_shelter: boolean
+          preferred_contact_channel: string
+          service_preferences: string[]
           urgency: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          district?: string | null
           id?: string
           is_volunteering?: boolean
+          needs_healthcare?: boolean
+          needs_humanitarian_aid?: boolean
           needs_medication?: boolean
           needs_shelter?: boolean
+          preferred_contact_channel?: string
+          service_preferences?: string[]
           urgency?: string
           user_id: string
         }
         Update: {
           created_at?: string
-          district?: string | null
           id?: string
           is_volunteering?: boolean
+          needs_healthcare?: boolean
+          needs_humanitarian_aid?: boolean
           needs_medication?: boolean
           needs_shelter?: boolean
+          preferred_contact_channel?: string
+          service_preferences?: string[]
           urgency?: string
           user_id?: string
         }
@@ -424,33 +463,57 @@ export type Database = {
       }
       sos_alerts: {
         Row: {
+          assistance_category: Database["public"]["Enums"]["assistance_category"]
+          classification_summary: string | null
           created_at: string
           id: string
-          location: unknown
           message: string | null
+          priority_level: Database["public"]["Enums"]["urgency_level"]
+          required_responder: Database["public"]["Enums"]["responder_type"]
           resolved_at: string | null
           responded_by: string | null
+          routing_module: Database["public"]["Enums"]["routing_module"]
+          routing_status: Database["public"]["Enums"]["routing_status"]
           status: Database["public"]["Enums"]["sos_status"]
+          triage_reason: string | null
+          updated_at: string
+          urgency: Database["public"]["Enums"]["urgency_level"]
           user_id: string
         }
         Insert: {
+          assistance_category?: Database["public"]["Enums"]["assistance_category"]
+          classification_summary?: string | null
           created_at?: string
           id?: string
-          location?: unknown
           message?: string | null
+          priority_level?: Database["public"]["Enums"]["urgency_level"]
+          required_responder?: Database["public"]["Enums"]["responder_type"]
           resolved_at?: string | null
           responded_by?: string | null
+          routing_module?: Database["public"]["Enums"]["routing_module"]
+          routing_status?: Database["public"]["Enums"]["routing_status"]
           status?: Database["public"]["Enums"]["sos_status"]
+          triage_reason?: string | null
+          updated_at?: string
+          urgency?: Database["public"]["Enums"]["urgency_level"]
           user_id: string
         }
         Update: {
+          assistance_category?: Database["public"]["Enums"]["assistance_category"]
+          classification_summary?: string | null
           created_at?: string
           id?: string
-          location?: unknown
           message?: string | null
+          priority_level?: Database["public"]["Enums"]["urgency_level"]
+          required_responder?: Database["public"]["Enums"]["responder_type"]
           resolved_at?: string | null
           responded_by?: string | null
+          routing_module?: Database["public"]["Enums"]["routing_module"]
+          routing_status?: Database["public"]["Enums"]["routing_status"]
           status?: Database["public"]["Enums"]["sos_status"]
+          triage_reason?: string | null
+          updated_at?: string
+          urgency?: Database["public"]["Enums"]["urgency_level"]
           user_id?: string
         }
         Relationships: []
@@ -499,11 +562,14 @@ export type Database = {
       }
       volunteers: {
         Row: {
+          assignment_capacity: number
+          availability_notes: string | null
           bio: string | null
           created_at: string
           id: string
-          location: unknown
           rating: number | null
+          routing_tags: string[]
+          service_channels: string[]
           skills: string[]
           status: Database["public"]["Enums"]["volunteer_status"]
           total_missions: number | null
@@ -511,11 +577,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          assignment_capacity?: number
+          availability_notes?: string | null
           bio?: string | null
           created_at?: string
           id?: string
-          location?: unknown
           rating?: number | null
+          routing_tags?: string[]
+          service_channels?: string[]
           skills?: string[]
           status?: Database["public"]["Enums"]["volunteer_status"]
           total_missions?: number | null
@@ -523,11 +592,14 @@ export type Database = {
           user_id: string
         }
         Update: {
+          assignment_capacity?: number
+          availability_notes?: string | null
           bio?: string | null
           created_at?: string
           id?: string
-          location?: unknown
           rating?: number | null
+          routing_tags?: string[]
+          service_channels?: string[]
           skills?: string[]
           status?: Database["public"]["Enums"]["volunteer_status"]
           total_missions?: number | null
@@ -1484,10 +1556,34 @@ export type Database = {
       validate_ngo_token: { Args: { p_token: string }; Returns: string }
     }
     Enums: {
+      assistance_category:
+        | "medical_emergency"
+        | "healthcare_service"
+        | "medication_need"
+        | "humanitarian_aid"
+        | "general_inquiry"
       app_role: "displaced_user" | "volunteer" | "ngo_admin"
       chat_status: "open" | "in_progress" | "closed"
       message_sender: "user" | "ngo"
       request_status: "pending" | "approved" | "fulfilled" | "cancelled"
+      responder_type:
+        | "healthcare_provider"
+        | "pharmacy_partner"
+        | "ngo_coordinator"
+        | "support_agent"
+      routing_module:
+        | "healthcare_network"
+        | "medication_supply"
+        | "ngo_coordination"
+        | "secure_messaging"
+      routing_status:
+        | "queued"
+        | "triaged"
+        | "routed"
+        | "accepted"
+        | "resolved"
+        | "escalated"
+        | "cancelled"
       sos_status: "active" | "responding" | "resolved" | "cancelled"
       urgency_level: "low" | "medium" | "high" | "critical"
       volunteer_status: "available" | "assigned" | "unavailable"
@@ -1626,10 +1722,38 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      assistance_category: [
+        "medical_emergency",
+        "healthcare_service",
+        "medication_need",
+        "humanitarian_aid",
+        "general_inquiry",
+      ],
       app_role: ["displaced_user", "volunteer", "ngo_admin"],
       chat_status: ["open", "in_progress", "closed"],
       message_sender: ["user", "ngo"],
       request_status: ["pending", "approved", "fulfilled", "cancelled"],
+      responder_type: [
+        "healthcare_provider",
+        "pharmacy_partner",
+        "ngo_coordinator",
+        "support_agent",
+      ],
+      routing_module: [
+        "healthcare_network",
+        "medication_supply",
+        "ngo_coordination",
+        "secure_messaging",
+      ],
+      routing_status: [
+        "queued",
+        "triaged",
+        "routed",
+        "accepted",
+        "resolved",
+        "escalated",
+        "cancelled",
+      ],
       sos_status: ["active", "responding", "resolved", "cancelled"],
       urgency_level: ["low", "medium", "high", "critical"],
       volunteer_status: ["available", "assigned", "unavailable"],

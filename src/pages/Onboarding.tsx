@@ -8,55 +8,50 @@ import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Shield, ChevronLeft, ChevronRight } from "lucide-react";
 
-const districts = [
-  { ar: "بيروت", en: "Beirut" },
-  { ar: "طرابلس", en: "Tripoli" },
-  { ar: "صيدا", en: "Sidon" },
-  { ar: "صور", en: "Tyre" },
-  { ar: "بعلبك", en: "Baalbek" },
-  { ar: "زحلة", en: "Zahle" },
-  { ar: "جبيل", en: "Byblos" },
-  { ar: "جونية", en: "Jounieh" },
-  { ar: "النبطية", en: "Nabatieh" },
-  { ar: "عكار", en: "Akkar" },
-  { ar: "البقاع", en: "Bekaa" },
-  { ar: "جبل لبنان", en: "Mount Lebanon" },
-  { ar: "غير محدد", en: "Not specified" },
-];
-
 const Onboarding = () => {
-  const { t, lang } = useLanguage();
+  const { lang } = useLanguage();
   const { user, setOnboarded } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
-  const [needsShelter, setNeedsShelter] = useState(false);
+  const [needsHumanitarianAid, setNeedsHumanitarianAid] = useState(false);
   const [needsMedication, setNeedsMedication] = useState(false);
+  const [needsHealthcare, setNeedsHealthcare] = useState(false);
   const [isVolunteering, setIsVolunteering] = useState(false);
-  const [district, setDistrict] = useState("Not specified");
   const [urgency, setUrgency] = useState("low");
   const [saving, setSaving] = useState(false);
+  const preferredContactChannel = "secure_messaging";
 
   const handleComplete = async () => {
     if (!user) return;
     setSaving(true);
 
+    const servicePreferences = [
+      needsHealthcare ? "healthcare_network" : null,
+      needsMedication ? "medication_supply" : null,
+      needsHumanitarianAid ? "ngo_coordination" : null,
+      preferredContactChannel,
+    ].filter(Boolean);
+
     // Save onboarding responses
-    await supabase.from("onboarding_responses").upsert({
+    await (supabase as any).from("onboarding_responses").upsert({
       user_id: user.id,
-      needs_shelter: needsShelter,
+      needs_shelter: false,
       needs_medication: needsMedication,
       is_volunteering: isVolunteering,
-      district,
       urgency,
+      needs_healthcare: needsHealthcare,
+      needs_humanitarian_aid: needsHumanitarianAid,
+      preferred_contact_channel: preferredContactChannel,
+      service_preferences: servicePreferences,
     }, { onConflict: "user_id" });
 
     // Assign role based on volunteering choice
     const role = isVolunteering ? "volunteer" : "displaced_user";
-    await supabase.from("user_roles").upsert({
+    await (supabase as any).from("user_roles").upsert({
       user_id: user.id,
       role: role as any,
-    }, { onConflict: "user_id" });
+    }, { onConflict: "user_id,role" });
 
     setOnboarded(true);
     navigate("/");
@@ -89,22 +84,22 @@ const Onboarding = () => {
         </p>
       </div>
     ),
-    // Step 1: Shelter
+    // Step 1: Humanitarian aid
     () => (
       <div className="text-center">
         <h2 className="mb-3 font-heading text-xl font-bold text-foreground">
-          {isAr ? "هل تبحث عن مأوى؟" : "Are you seeking shelter?"}
+          {isAr ? "هل تحتاج دعماً إنسانياً أو من منظمة؟" : "Do you need humanitarian aid or NGO support?"}
         </h2>
         <p className="mb-6 text-sm text-muted-foreground">
-          {isAr ? "سنساعدك في إيجاد أقرب ملجأ متاح" : "We'll help you find the nearest available shelter"}
+          {isAr ? "سنوجّه طلبات الإغاثة والمواد الأساسية والمأوى إلى فرق التنسيق المناسبة" : "We will route relief, essential supplies, and shelter support requests to the right coordination teams"}
         </p>
         <div className="flex justify-center gap-4">
           {[true, false].map((v) => (
             <button
               key={String(v)}
-              onClick={() => setNeedsShelter(v)}
+              onClick={() => setNeedsHumanitarianAid(v)}
               className={`flex-1 max-w-[140px] rounded-xl px-6 py-4 text-base font-semibold transition-all ${
-                needsShelter === v
+                needsHumanitarianAid === v
                   ? "bg-primary text-primary-foreground ring-2 ring-ring"
                   : "bg-secondary text-secondary-foreground"
               }`}
@@ -167,27 +162,27 @@ const Onboarding = () => {
         </div>
       </div>
     ),
-    // Step 4: District
+    // Step 4: Healthcare
     () => (
       <div className="text-center">
         <h2 className="mb-3 font-heading text-xl font-bold text-foreground">
-          {isAr ? "في أي منطقة أنت؟" : "Which district are you in?"}
+          {isAr ? "هل تحتاج تنسيقاً صحياً؟" : "Do you need healthcare coordination?"}
         </h2>
         <p className="mb-6 text-sm text-muted-foreground">
-          {isAr ? "منطقة عامة فقط — لا نجمع موقعك الدقيق" : "General area only — we don't collect your exact location"}
+          {isAr ? "سنوجّه طلبات العيادات أو الاستشارات أو الرعاية العاجلة إلى شبكة الرعاية الصحية" : "Clinical, teleconsultation, and urgent care needs are routed to the healthcare network"}
         </p>
-        <div className="mx-auto grid max-w-sm grid-cols-2 gap-2">
-          {districts.map((d) => (
+        <div className="flex justify-center gap-4">
+          {[true, false].map((v) => (
             <button
-              key={d.en}
-              onClick={() => setDistrict(d.en)}
-              className={`rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                district === d.en
+              key={String(v)}
+              onClick={() => setNeedsHealthcare(v)}
+              className={`flex-1 max-w-[140px] rounded-xl px-6 py-4 text-base font-semibold transition-all ${
+                needsHealthcare === v
                   ? "bg-primary text-primary-foreground ring-2 ring-ring"
                   : "bg-secondary text-secondary-foreground"
               }`}
             >
-              {isAr ? d.ar : d.en}
+              {v ? (isAr ? "نعم" : "Yes") : (isAr ? "لا" : "No")}
             </button>
           ))}
         </div>

@@ -16,6 +16,25 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const inferRoutingStatus = (status: string) => {
+      switch (status) {
+        case "active":
+        case "pending":
+          return "routed";
+        case "responding":
+        case "approved":
+        case "in_progress":
+          return "accepted";
+        case "resolved":
+        case "fulfilled":
+        case "closed":
+          return "resolved";
+        case "cancelled":
+          return "cancelled";
+        default:
+          return "triaged";
+      }
+    };
 
     // Validate token
     const { data: tokenId, error: tokenError } = await supabase.rpc("validate_ngo_token", { p_token: token });
@@ -35,7 +54,7 @@ Deno.serve(async (req) => {
       case "get_medication_requests": {
         const { data } = await supabase
           .from("medication_requests")
-          .select("id, medication_name, urgency, status, created_at, notes")
+          .select("id, medication_name, urgency, status, created_at, notes, priority_level, routing_module, routing_status, required_responder, classification_summary")
           .order("created_at", { ascending: false })
           .limit(100);
         result = data;
@@ -44,7 +63,7 @@ Deno.serve(async (req) => {
       case "get_sos_alerts": {
         const { data } = await supabase
           .from("sos_alerts")
-          .select("id, message, status, created_at")
+          .select("id, message, status, created_at, priority_level, routing_module, routing_status, required_responder, classification_summary")
           .order("created_at", { ascending: false })
           .limit(100);
         result = data;
@@ -69,7 +88,7 @@ Deno.serve(async (req) => {
       }
       case "update_sos_status": {
         const { id, status } = payload;
-        const update: any = { status };
+        const update: any = { status, routing_status: inferRoutingStatus(status) };
         if (status === "resolved") update.resolved_at = new Date().toISOString();
         const { error } = await supabase.from("sos_alerts").update(update).eq("id", id);
         result = { success: !error };
@@ -77,7 +96,10 @@ Deno.serve(async (req) => {
       }
       case "update_med_status": {
         const { id, status } = payload;
-        const { error } = await supabase.from("medication_requests").update({ status }).eq("id", id);
+        const { error } = await supabase
+          .from("medication_requests")
+          .update({ status, routing_status: inferRoutingStatus(status) })
+          .eq("id", id);
         result = { success: !error };
         break;
       }

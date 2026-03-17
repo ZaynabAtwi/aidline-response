@@ -3,6 +3,17 @@ import { Pill, Clock, CheckCircle, AlertTriangle } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import RoutingDecisionCard from "@/components/RoutingDecisionCard";
+import {
+  getLocalizedLabel,
+  priorityLevelLabels,
+  routingModuleLabels,
+  routingStatusLabels,
+  triageRequest,
+  type PriorityLevel,
+  type RoutingModule,
+  type RoutingStatus,
+} from "@/lib/requestRouting";
 
 
 const medications = [
@@ -32,24 +43,34 @@ interface MedRequest {
   status: string;
   created_at: string;
   notes: string | null;
+  priority_level?: PriorityLevel | null;
+  routing_module?: RoutingModule | null;
+  routing_status?: RoutingStatus | null;
+  classification_summary?: string | null;
 }
 
 const Medication = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { user } = useAuth();
   const [selectedMed, setSelectedMed] = useState("");
-  const [urgency, setUrgency] = useState("medium");
+  const [urgency, setUrgency] = useState<PriorityLevel>("medium");
   const [notes, setNotes] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [requests, setRequests] = useState<MedRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const routingDecision = triageRequest({
+    requestType: "medication",
+    urgency,
+    description: notes,
+    medicationName: selectedMed,
+  });
 
   useEffect(() => {
     if (user) fetchRequests();
   }, [user]);
 
   const fetchRequests = async () => {
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("medication_requests")
       .select("*")
       .eq("user_id", user!.id)
@@ -61,11 +82,19 @@ const Medication = () => {
     e.preventDefault();
     if (!selectedMed || !user) return;
     setLoading(true);
-    const { error } = await supabase.from("medication_requests").insert({
+    const { error } = await (supabase as any).from("medication_requests").insert({
       user_id: user.id,
       medication_name: selectedMed,
-      urgency: urgency as any,
+      urgency,
       notes: notes || null,
+      assistance_category: routingDecision.category,
+      priority_level: routingDecision.priority,
+      routing_module: routingDecision.module,
+      routing_status: routingDecision.routingStatus,
+      required_responder: routingDecision.requiredResponder,
+      classification_summary: routingDecision.summary,
+      triage_reason: routingDecision.reason,
+      escalation_target: routingDecision.escalationTarget,
     });
     if (!error) {
       setSubmitted(true);
@@ -77,7 +106,12 @@ const Medication = () => {
     setLoading(false);
   };
 
-  const urgencyLabels = { low: t("med.low"), medium: t("med.medium"), high: t("med.high"), critical: t("med.critical") };
+  const urgencyLabels = {
+    low: t("med.low"),
+    medium: t("med.medium"),
+    high: t("med.high"),
+    critical: t("med.critical"),
+  };
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pt-20">
@@ -131,6 +165,13 @@ const Medication = () => {
                   rows={2}
                 />
               </div>
+
+              <RoutingDecisionCard
+                decision={routingDecision}
+                className="mb-6"
+                title={lang === "ar" ? "معاينة توجيه الطلب الدوائي" : "Medication routing preview"}
+              />
+
               <button
                 type="submit"
                 disabled={!selectedMed || loading}
@@ -149,11 +190,30 @@ const Medication = () => {
                     <div>
                       <p className="font-medium text-foreground">{r.medication_name}</p>
                       <p className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</p>
+                      {r.classification_summary && (
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          {r.classification_summary}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColors[r.urgency]}`}>
-                        {urgencyLabels[r.urgency as keyof typeof urgencyLabels] || r.urgency}
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColors[r.priority_level || r.urgency]}`}>
+                          {r.priority_level
+                            ? getLocalizedLabel(priorityLevelLabels, r.priority_level, lang)
+                            : urgencyLabels[r.urgency as keyof typeof urgencyLabels] || r.urgency}
+                        </span>
+                        {r.routing_module && (
+                          <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary">
+                            {getLocalizedLabel(routingModuleLabels, r.routing_module, lang)}
+                          </span>
+                        )}
+                        {r.routing_status && (
+                          <span className="rounded-full bg-secondary px-3 py-1 text-[11px] font-medium text-secondary-foreground">
+                            {getLocalizedLabel(routingStatusLabels, r.routing_status, lang)}
+                          </span>
+                        )}
+                      </div>
                       <StatusIcon className={`h-5 w-5 ${r.status === "fulfilled" ? "text-success" : "text-accent"}`} />
                     </div>
                   </div>

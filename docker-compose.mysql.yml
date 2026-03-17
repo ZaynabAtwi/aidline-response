@@ -1,0 +1,18 @@
+services:
+  aidline-mysql:
+    image: mysql:8.4
+    container_name: aidline-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: aidline
+      MYSQL_USER: aidline
+      MYSQL_PASSWORD: aidline
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - aidline-mysql-data:/var/lib/mysql
+      - ./database/mysql/aidline_request_routing_schema.sql:/docker-entrypoint-initdb.d/01-aidline-schema.sql:ro
+
+volumes:
+  aidline-mysql-data:

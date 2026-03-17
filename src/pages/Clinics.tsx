@@ -1,7 +1,15 @@
 import { useState, useEffect } from "react";
-import { Stethoscope, MapPin, Phone, CheckCircle, XCircle } from "lucide-react";
+import {
+  Building2,
+  CheckCircle,
+  MessageCircle,
+  Phone,
+  Stethoscope,
+  XCircle,
+} from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
+import { Link } from "react-router-dom";
 
 interface Clinic {
   id: string;
@@ -14,7 +22,7 @@ interface Clinic {
 }
 
 const Clinics = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,6 +44,30 @@ const Clinics = () => {
         </div>
         <p className="mb-8 text-muted-foreground">{t("clinics.subtitle")}</p>
 
+        <div className="mb-6 rounded-xl border border-primary/20 bg-primary/5 p-4">
+          <p className="text-sm text-foreground">
+            AidLine:{" "}
+            {lang === "ar"
+              ? "إذا كنت تحتاج تنسيقاً طبياً مباشراً، استخدم SOS للحالات الحرجة أو قناة الدعم الآمنة للمتابعة."
+              : "If you need coordinated medical support, use SOS for critical cases or the secure support channel for follow-up."}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              to="/sos"
+              className="rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground"
+            >
+              SOS
+            </Link>
+            <Link
+              to="/chat"
+              className="inline-flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground"
+            >
+              <MessageCircle className="h-4 w-4" />
+              {lang === "ar" ? "الدعم الآمن" : "Secure Support"}
+            </Link>
+          </div>
+        </div>
+
         {loading ? (
           <div className="py-12 text-center text-muted-foreground">{t("common.loading")}</div>
         ) : clinics.length === 0 ? (
@@ -53,7 +85,12 @@ const Clinics = () => {
                   <div>
                     <h3 className="font-heading text-lg font-semibold text-foreground">{c.name}</h3>
                     <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                      {c.address && <><MapPin className="h-4 w-4" /><span>{c.address}</span></>}
+                      {c.address && (
+                        <>
+                          <Building2 className="h-4 w-4" />
+                          <span>{c.address}</span>
+                        </>
+                      )}
                       {c.is_operational ? (
                         <span className="flex items-center gap-1 text-success">
                           <CheckCircle className="h-3.5 w-3.5" /> {t("clinics.open")}

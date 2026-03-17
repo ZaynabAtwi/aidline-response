@@ -1,17 +1,95 @@
 import { useState, useEffect } from "react";
-import { Building2, Pill, AlertTriangle, Users, ClipboardList, Save, X, Edit2, UserCheck, MessageCircle, Send, Eye } from "lucide-react";
+import { Building2, Pill, AlertTriangle, Users, ClipboardList, Save, X, Edit2, UserCheck, MessageCircle, Send } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, Navigate } from "react-router-dom";
+import {
+  buildCrisisIntelligence,
+  getLocalizedLabel,
+  inferRoutingStatusFromOperationalStatus,
+  priorityLevelLabels,
+  responderTypeLabels,
+  routingModuleLabels,
+  routingStatusLabels,
+  type PriorityLevel,
+  type ResponderType,
+  type RoutingModule,
+  type RoutingStatus,
+} from "@/lib/requestRouting";
 
 type Tab = "shelters" | "medication" | "sos" | "volunteers" | "requests" | "messages";
 
 // ── Types ──
 interface Shelter { id: string; name: string; address: string | null; capacity: number; available_spots: number; is_operational: boolean; ngo: string | null; }
-interface MedRequest { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; user_id: string; }
-interface SOSAlert { id: string; message: string | null; status: string; created_at: string; user_id: string; responded_by: string | null; }
-interface Volunteer { id: string; user_id: string; skills: string[]; status: string; rating: number | null; bio: string | null; }
+interface MedRequest { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; user_id: string; priority_level?: PriorityLevel | null; routing_module?: RoutingModule | null; routing_status?: RoutingStatus | null; required_responder?: ResponderType | null; classification_summary?: string | null; }
+interface SOSAlert { id: string; message: string | null; status: string; created_at: string; user_id: string; responded_by: string | null; urgency?: PriorityLevel | null; priority_level?: PriorityLevel | null; routing_module?: RoutingModule | null; routing_status?: RoutingStatus | null; required_responder?: ResponderType | null; classification_summary?: string | null; }
+interface Volunteer { id: string; user_id: string; skills: string[]; status: string; rating: number | null; bio: string | null; service_channels?: RoutingModule[]; assignment_capacity?: number | null; }
+
+const RoutingOverview = ({ lang }: { lang: string }) => {
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState(() =>
+    buildCrisisIntelligence([]),
+  );
+
+  useEffect(() => {
+    const fetchOverview = async () => {
+      setLoading(true);
+      const [sosResponse, medResponse] = await Promise.all([
+        (supabase as any)
+          .from("sos_alerts")
+          .select("priority_level, routing_module, routing_status, assistance_category"),
+        (supabase as any)
+          .from("medication_requests")
+          .select("priority_level, routing_module, routing_status, assistance_category"),
+      ]);
+
+      const cases = [...(sosResponse.data || []), ...(medResponse.data || [])];
+      setSummary(buildCrisisIntelligence(cases));
+      setLoading(false);
+    };
+
+    fetchOverview();
+  }, []);
+
+  const cards = [
+    {
+      label: lang === "ar" ? "إجمالي الحالات" : "Total cases",
+      value: summary.totalCases,
+      tone: "text-foreground",
+    },
+    {
+      label: lang === "ar" ? "حالات حرجة" : "Critical cases",
+      value: summary.criticalCases,
+      tone: "text-destructive",
+    },
+    {
+      label: lang === "ar" ? "حالات مفتوحة" : "Open cases",
+      value: summary.openCases,
+      tone: "text-primary",
+    },
+    {
+      label: lang === "ar" ? "حالات مصعّدة" : "Escalated cases",
+      value: summary.escalatedCases,
+      tone: "text-accent",
+    },
+  ];
+
+  return (
+    <div className="mb-6 grid gap-3 md:grid-cols-4">
+      {cards.map((card) => (
+        <div key={card.label} className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            {card.label}
+          </p>
+          <p className={`mt-2 font-heading text-3xl font-bold ${card.tone}`}>
+            {loading ? "..." : card.value}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const Dashboard = () => {
   const { t, lang } = useLanguage();
@@ -55,6 +133,8 @@ const Dashboard = () => {
         <h1 className="mb-6 font-heading text-3xl font-bold text-foreground">
           {lang === "ar" ? "لوحة تحكم المنظمة" : "NGO Admin Dashboard"}
         </h1>
+
+        <RoutingOverview lang={lang} />
 
         {/* Tab Navigation */}
         <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1">
@@ -196,7 +276,13 @@ const MedRequestList = ({ lang }: { lang: string }) => {
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await supabase.from("medication_requests").update({ status: status as any }).eq("id", id);
+    await (supabase as any)
+      .from("medication_requests")
+      .update({
+        status,
+        routing_status: inferRoutingStatusFromOperationalStatus(status),
+      })
+      .eq("id", id);
     fetchAll();
   };
 
@@ -212,8 +298,34 @@ const MedRequestList = ({ lang }: { lang: string }) => {
               <h3 className="font-heading text-base font-semibold text-foreground">{r.medication_name}</h3>
               <p className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</p>
               {r.notes && <p className="mt-1 text-sm text-muted-foreground">{r.notes}</p>}
+              {r.classification_summary && (
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  {r.classification_summary}
+                </p>
+              )}
             </div>
-            <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColors[r.urgency]}`}>{r.urgency}</span>
+            <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColors[r.priority_level || r.urgency]}`}>
+              {r.priority_level
+                ? getLocalizedLabel(priorityLevelLabels, r.priority_level, lang as "ar" | "en")
+                : r.urgency}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {r.routing_module && (
+              <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary">
+                {getLocalizedLabel(routingModuleLabels, r.routing_module, lang as "ar" | "en")}
+              </span>
+            )}
+            {r.required_responder && (
+              <span className="rounded-full bg-accent/10 px-3 py-1 text-[11px] font-medium text-accent">
+                {getLocalizedLabel(responderTypeLabels, r.required_responder, lang as "ar" | "en")}
+              </span>
+            )}
+            {r.routing_status && (
+              <span className="rounded-full bg-secondary px-3 py-1 text-[11px] font-medium text-secondary-foreground">
+                {getLocalizedLabel(routingStatusLabels, r.routing_status, lang as "ar" | "en")}
+              </span>
+            )}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {(["pending", "approved", "fulfilled", "cancelled"] as const).map((s) => (
@@ -353,7 +465,8 @@ const SOSAlertPanel = ({ lang }: { lang: string }) => {
   const updateStatus = async (id: string, status: string) => {
     const update: any = { status };
     if (status === "resolved") update.resolved_at = new Date().toISOString();
-    await supabase.from("sos_alerts").update(update).eq("id", id);
+    update.routing_status = inferRoutingStatusFromOperationalStatus(status);
+    await (supabase as any).from("sos_alerts").update(update).eq("id", id);
     fetchAlerts();
   };
 
@@ -369,9 +482,36 @@ const SOSAlertPanel = ({ lang }: { lang: string }) => {
               <div className="flex items-center gap-2">
                 <AlertTriangle className={`h-5 w-5 ${a.status === "active" ? "text-destructive" : "text-muted-foreground"}`} />
                 <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${sosStatusColors[a.status]}`}>{a.status}</span>
+                {a.priority_level && (
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${urgencyColors[a.priority_level]}`}>
+                    {getLocalizedLabel(priorityLevelLabels, a.priority_level, lang as "ar" | "en")}
+                  </span>
+                )}
               </div>
               <p className="mt-2 text-sm text-foreground">{a.message || (lang === "ar" ? "لا توجد رسالة" : "No message")}</p>
               <p className="mt-1 text-xs text-muted-foreground">{new Date(a.created_at).toLocaleString()}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {a.routing_module && (
+                  <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary">
+                    {getLocalizedLabel(routingModuleLabels, a.routing_module, lang as "ar" | "en")}
+                  </span>
+                )}
+                {a.required_responder && (
+                  <span className="rounded-full bg-accent/10 px-3 py-1 text-[11px] font-medium text-accent">
+                    {getLocalizedLabel(responderTypeLabels, a.required_responder, lang as "ar" | "en")}
+                  </span>
+                )}
+                {a.routing_status && (
+                  <span className="rounded-full bg-secondary px-3 py-1 text-[11px] font-medium text-secondary-foreground">
+                    {getLocalizedLabel(routingStatusLabels, a.routing_status, lang as "ar" | "en")}
+                  </span>
+                )}
+              </div>
+              {a.classification_summary && (
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  {a.classification_summary}
+                </p>
+              )}
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -403,7 +543,10 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
   useEffect(() => { fetchV(); }, []);
 
   const fetchV = async () => {
-    const { data } = await supabase.from("volunteers").select("*").order("created_at", { ascending: false });
+    const { data } = await (supabase as any)
+      .from("volunteers")
+      .select("*")
+      .order("created_at", { ascending: false });
     if (data) setVolunteers(data as Volunteer[]);
     setLoading(false);
   };
@@ -451,6 +594,25 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
               <X className="h-3.5 w-3.5" /> {lang === "ar" ? "غير متاح" : "Unavailable"}
             </button>
           </div>
+          {v.service_channels && v.service_channels.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {v.service_channels.map((channel) => (
+                <span
+                  key={channel}
+                  className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                >
+                  {getLocalizedLabel(routingModuleLabels, channel, lang as "ar" | "en")}
+                </span>
+              ))}
+            </div>
+          )}
+          {v.assignment_capacity ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              {lang === "ar"
+                ? `السعة الحالية لكل مهمة: ${v.assignment_capacity}`
+                : `Current assignment capacity per task: ${v.assignment_capacity}`}
+            </p>
+          ) : null}
         </div>
       ))}
     </div>

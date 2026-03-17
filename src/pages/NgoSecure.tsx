@@ -1,11 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Shield, Lock, Building2, Pill, AlertTriangle, MessageSquare,
   Save, X, Edit2, Clock, RefreshCw, LogOut, Send
 } from "lucide-react";
+import {
+  buildCrisisIntelligence,
+  getLocalizedLabel,
+  priorityLevelLabels,
+  responderTypeLabels,
+  routingModuleLabels,
+  routingStatusLabels,
+  type PriorityLevel,
+  type ResponderType,
+  type RoutingModule,
+  type RoutingStatus,
+} from "@/lib/requestRouting";
 
 const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
@@ -22,8 +33,8 @@ const ngoApi = async (token: string, action: string, payload?: any) => {
 type Tab = "med_requests" | "sos" | "shelters" | "notes";
 
 interface Shelter { id: string; name: string; address: string | null; capacity: number; available_spots: number; is_operational: boolean; }
-interface MedReq { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; }
-interface SOSAlert { id: string; message: string | null; status: string; created_at: string; }
+interface MedReq { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; priority_level?: PriorityLevel | null; routing_module?: RoutingModule | null; routing_status?: RoutingStatus | null; required_responder?: ResponderType | null; classification_summary?: string | null; }
+interface SOSAlert { id: string; message: string | null; status: string; created_at: string; priority_level?: PriorityLevel | null; routing_module?: RoutingModule | null; routing_status?: RoutingStatus | null; required_responder?: ResponderType | null; classification_summary?: string | null; }
 interface Note { id: string; content: string; created_at: string; }
 
 const urgencyColor: Record<string, string> = {
@@ -42,7 +53,6 @@ const sosColor: Record<string, string> = {
 
 const NgoSecure = () => {
   const { lang } = useLanguage();
-  const navigate = useNavigate();
   const isAr = lang === "ar";
 
   // Auth state
@@ -224,6 +234,20 @@ const NgoSecure = () => {
     { id: "shelters", label: isAr ? "الملاجئ" : "Shelters", icon: Building2 },
     { id: "notes", label: isAr ? "ملاحظات التنسيق" : "Coordination Notes", icon: MessageSquare },
   ];
+  const crisisSummary = buildCrisisIntelligence([
+    ...sosAlerts.map((alert) => ({
+      assistance_category: "medical_emergency" as const,
+      priority_level: alert.priority_level ?? "critical",
+      routing_module: alert.routing_module ?? "healthcare_network",
+      routing_status: alert.routing_status ?? "routed",
+    })),
+    ...medRequests.map((request) => ({
+      assistance_category: "medication_need" as const,
+      priority_level: request.priority_level ?? (request.urgency as PriorityLevel),
+      routing_module: request.routing_module ?? "medication_supply",
+      routing_status: request.routing_status ?? "routed",
+    })),
+  ]);
 
   return (
     <div className="min-h-screen bg-[hsl(220,25%,6%)]">
@@ -249,6 +273,43 @@ const NgoSecure = () => {
       </div>
 
       <div className="mx-auto max-w-5xl px-4 py-6">
+        <div className="mb-6 grid gap-3 md:grid-cols-4">
+          {[
+            {
+              label: isAr ? "إجمالي الحالات" : "Total cases",
+              value: crisisSummary.totalCases,
+              tone: "text-[hsl(210,20%,92%)]",
+            },
+            {
+              label: isAr ? "حالات حرجة" : "Critical cases",
+              value: crisisSummary.criticalCases,
+              tone: "text-[hsl(0,80%,55%)]",
+            },
+            {
+              label: isAr ? "حالات مفتوحة" : "Open cases",
+              value: crisisSummary.openCases,
+              tone: "text-[hsl(185,70%,50%)]",
+            },
+            {
+              label: isAr ? "حالات مصعّدة" : "Escalated cases",
+              value: crisisSummary.escalatedCases,
+              tone: "text-[hsl(38,90%,55%)]",
+            },
+          ].map((metric) => (
+            <div
+              key={metric.label}
+              className="rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,10%)] p-4"
+            >
+              <p className="text-xs uppercase tracking-wide text-[hsl(215,15%,45%)]">
+                {metric.label}
+              </p>
+              <p className={`mt-2 font-heading text-3xl font-bold ${metric.tone}`}>
+                {metric.value}
+              </p>
+            </div>
+          ))}
+        </div>
+
         {/* Tabs */}
         <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,8%)] p-1">
           {tabs.map((t) => (
@@ -287,6 +348,33 @@ const NgoSecure = () => {
                       <Clock className="h-3 w-3" />
                       {new Date(a.created_at).toLocaleString()}
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {a.priority_level && (
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${urgencyColor[a.priority_level] || ""}`}>
+                          {getLocalizedLabel(priorityLevelLabels, a.priority_level, lang)}
+                        </span>
+                      )}
+                      {a.routing_module && (
+                        <span className="rounded-full bg-[hsl(185,70%,42%)]/10 px-3 py-1 text-[11px] font-medium text-[hsl(185,70%,50%)]">
+                          {getLocalizedLabel(routingModuleLabels, a.routing_module, lang)}
+                        </span>
+                      )}
+                      {a.required_responder && (
+                        <span className="rounded-full bg-[hsl(38,90%,55%)]/10 px-3 py-1 text-[11px] font-medium text-[hsl(38,90%,55%)]">
+                          {getLocalizedLabel(responderTypeLabels, a.required_responder, lang)}
+                        </span>
+                      )}
+                      {a.routing_status && (
+                        <span className="rounded-full bg-[hsl(220,18%,16%)] px-3 py-1 text-[11px] font-medium text-[hsl(215,15%,55%)]">
+                          {getLocalizedLabel(routingStatusLabels, a.routing_status, lang)}
+                        </span>
+                      )}
+                    </div>
+                    {a.classification_summary && (
+                      <p className="mt-2 text-xs leading-relaxed text-[hsl(215,15%,55%)]">
+                        {a.classification_summary}
+                      </p>
+                    )}
                   </div>
                   <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${sosColor[a.status] || ""}`}>
                     {a.status}
@@ -323,9 +411,33 @@ const NgoSecure = () => {
                     <h3 className="font-heading text-sm font-semibold text-[hsl(210,20%,92%)]">{r.medication_name}</h3>
                     <p className="mt-0.5 text-xs text-[hsl(215,15%,45%)]">{new Date(r.created_at).toLocaleString()}</p>
                     {r.notes && <p className="mt-1 text-xs text-[hsl(215,15%,55%)]">{r.notes}</p>}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {r.routing_module && (
+                        <span className="rounded-full bg-[hsl(185,70%,42%)]/10 px-3 py-1 text-[11px] font-medium text-[hsl(185,70%,50%)]">
+                          {getLocalizedLabel(routingModuleLabels, r.routing_module, lang)}
+                        </span>
+                      )}
+                      {r.required_responder && (
+                        <span className="rounded-full bg-[hsl(38,90%,55%)]/10 px-3 py-1 text-[11px] font-medium text-[hsl(38,90%,55%)]">
+                          {getLocalizedLabel(responderTypeLabels, r.required_responder, lang)}
+                        </span>
+                      )}
+                      {r.routing_status && (
+                        <span className="rounded-full bg-[hsl(220,18%,16%)] px-3 py-1 text-[11px] font-medium text-[hsl(215,15%,55%)]">
+                          {getLocalizedLabel(routingStatusLabels, r.routing_status, lang)}
+                        </span>
+                      )}
+                    </div>
+                    {r.classification_summary && (
+                      <p className="mt-2 text-xs leading-relaxed text-[hsl(215,15%,55%)]">
+                        {r.classification_summary}
+                      </p>
+                    )}
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColor[r.urgency] || ""}`}>
-                    {r.urgency}
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColor[r.priority_level || r.urgency] || ""}`}>
+                    {r.priority_level
+                      ? getLocalizedLabel(priorityLevelLabels, r.priority_level, lang)
+                      : r.urgency}
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
