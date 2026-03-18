@@ -4,6 +4,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
+import logo from "@/assets/aidline-logo.svg";
 
 const Login = () => {
   const { lang } = useLanguage();
@@ -47,7 +48,7 @@ const Login = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 md:p-8">
-        <h1 className="mb-2 font-heading text-3xl font-bold text-foreground">AidLine</h1>
+        <img src={logo} alt="AidLine" className="mb-4 h-12 w-auto" />
         <p className="mb-6 text-sm text-muted-foreground">
           {isAr
             ? "يرجى إدخال البيانات الأساسية لإنشاء هويتك على المنصة."

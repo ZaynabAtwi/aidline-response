@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Stethoscope, Pill, Users, AlertTriangle, MessageCircle, ArrowDown } from "lucide-react";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/aidline-logo.svg";
 import { useLanguage } from "@/i18n/LanguageContext";
 import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -56,11 +56,7 @@ const Index = () => {
 
       {/* Hero */}
       <section className="flex flex-col items-center px-4 pt-8 text-center md:pt-12">
-        <div className="mb-4 gap-4 flex items-start justify-start">
-          <h1 className="font-heading text-4xl font-bold text-foreground md:text-5xl">
-            Aid<span className="text-gradient-primary">Line</span>
-          </h1>
-        </div>
+        <img src={logo} alt="AidLine" className="mb-5 w-full max-w-xl" />
         <p className="max-w-md text-lg text-muted-foreground">{t("home.tagline")}</p>
       </section>
 
