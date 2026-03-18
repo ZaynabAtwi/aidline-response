@@ -38,7 +38,6 @@ const sosColor: Record<string, string> = {
 
 const NgoSecure = () => {
   const { lang } = useLanguage();
-  const navigate = useNavigate();
   const isAr = lang === "ar";
 
   // Auth state
