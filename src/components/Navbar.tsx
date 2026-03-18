@@ -4,6 +4,7 @@ import LanguageToggle from "./LanguageToggle";
 import ThemeToggle from "./ThemeToggle";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import logo from "@/assets/aidline-logo.svg";
 
 const Navbar = () => {
   const location = useLocation();
@@ -21,7 +22,7 @@ const Navbar = () => {
     <nav className="fixed bottom-0 start-0 end-0 z-50 border-t border-border bg-card/95 backdrop-blur-md md:top-0 md:bottom-auto md:border-b md:border-t-0">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-2 py-2 md:px-6">
         <Link to="/" className="hidden items-center gap-2 md:flex">
-          <span className="font-heading text-lg font-bold text-foreground">AidLine</span>
+          <img src={logo} alt="AidLine" className="h-8 w-auto" />
         </Link>
         <div className="flex w-full items-center justify-around gap-1 md:w-auto md:gap-2">
           {navItems.map((item) => {
