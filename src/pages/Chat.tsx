@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { MessageCircle, Send, AlertTriangle, RefreshCw, Check, Eye } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { chatApi } from "@/lib/api/client";
-import { supabase } from "@/integrations/supabase/client";
+import { ensureConversation, getMessages, sendMessage } from "@/services/chatService";
 import { Link } from "react-router-dom";
 
 interface Message {
@@ -28,7 +27,6 @@ const Chat = () => {
   const [sending, setSending] = useState(false);
   const [lastSentAt, setLastSentAt] = useState(0);
   const [cooldown, setCooldown] = useState(0);
-  const [useBackend, setUseBackend] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,58 +45,26 @@ const Chat = () => {
 
   const loadConversation = async () => {
     setLoading(true);
-    try {
-      const res = await chatApi.createConversation();
-      if (res.success && res.data?.id) {
-        setConversationId(res.data.id);
-        setUseBackend(true);
-        await fetchMessages(res.data.id, true);
-        setLoading(false);
-        return;
-      }
-    } catch {
-      setUseBackend(false);
-    }
-
-    // Fallback: Supabase
-    const { data: convos } = await (supabase as any)
-      .from("chat_conversations")
-      .select("id")
-      .eq("user_id", user!.id)
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    let convId = convos?.[0]?.id;
-    if (!convId) {
-      const { data: newConv } = await (supabase as any)
-        .from("chat_conversations")
-        .insert({ user_id: user!.id })
-        .select("id")
-        .single();
-      convId = newConv?.id;
-    }
+    const conversation = await ensureConversation(user!.id);
+    const convId = conversation?.id;
     if (convId) {
       setConversationId(convId);
-      await fetchMessages(convId, false);
+      await fetchMessagesForConversation(convId);
     }
     setLoading(false);
   };
 
-  const fetchMessages = async (convId: string, backend: boolean) => {
-    if (backend) {
-      try {
-        const res = await chatApi.getMessages(convId);
-        if (res.success) { setMessages(res.data); return; }
-      } catch {
-        // fall through
-      }
-    }
-    const { data } = await (supabase as any)
-      .from("chat_messages")
-      .select("*")
-      .eq("conversation_id", convId)
-      .order("created_at", { ascending: true });
-    if (data) setMessages(data as Message[]);
+  const fetchMessagesForConversation = async (convId: string) => {
+    const rows = await getMessages(convId);
+    setMessages(
+      rows.map((row) => ({
+        id: row.id,
+        sender: row.sender,
+        message: row.message,
+        is_read: row.is_read,
+        created_at: row.created_at,
+      }))
+    );
   };
 
   const handleSend = async () => {
@@ -112,35 +78,15 @@ const Chat = () => {
     }
 
     setSending(true);
-    if (useBackend) {
-      try {
-        const res = await chatApi.sendMessage(conversationId, input.trim());
-        if (res.success) {
-          setInput("");
-          setLastSentAt(Date.now());
-          await fetchMessages(conversationId, true);
-          setSending(false);
-          return;
-        }
-      } catch {
-        // fall through to Supabase
-      }
-    }
-    const { error } = await (supabase as any).from("chat_messages").insert({
-      conversation_id: conversationId,
-      sender: "user",
-      message: input.trim(),
-    });
-    if (!error) {
-      setInput("");
-      setLastSentAt(Date.now());
-      await fetchMessages(conversationId, false);
-    }
+    await sendMessage(conversationId, input.trim(), "user");
+    setInput("");
+    setLastSentAt(Date.now());
+    await fetchMessagesForConversation(conversationId);
     setSending(false);
   };
 
   const handleRefresh = () => {
-    if (conversationId) fetchMessages(conversationId, useBackend);
+    if (conversationId) fetchMessagesForConversation(conversationId);
   };
 
   const getStatusIcon = (msg: Message) => {

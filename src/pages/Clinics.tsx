@@ -1,20 +1,7 @@
 import { useState, useEffect } from "react";
 import { Stethoscope, Phone, CheckCircle, XCircle, Search, Filter } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { providersApi } from "@/lib/api/client";
-import { supabase } from "@/integrations/supabase/client";
-
-interface Provider {
-  id: string;
-  name: string;
-  type: "healthcare" | "pharmacy" | "ngo";
-  contact_email: string | null;
-  contact_phone: string | null;
-  description: string | null;
-  services: string[] | null;
-  operating_hours: string | null;
-  is_active: boolean;
-}
+import { getClinicProviders, type Provider } from "@/services/clinicsService";
 
 const TYPE_LABELS: Record<string, { en: string; ar: string; color: string }> = {
   healthcare: { en: "Healthcare",   ar: "رعاية صحية",  color: "bg-accent/15 text-accent" },
@@ -54,38 +41,10 @@ const Clinics = () => {
   const loadProviders = async () => {
     setLoading(true);
     try {
-      // Try MySQL backend first
-      const res = await providersApi.list({ pageSize: 100 });
-      if (res.success && res.data?.items) {
-        const items = res.data.items.map((p: any) => ({
-          ...p,
-          services: typeof p.services === "string" ? JSON.parse(p.services) : p.services,
-        }));
-        setProviders(items);
-        return;
-      }
+      const items = await getClinicProviders();
+      setProviders(items);
     } catch {
-      // Fall back to Supabase for legacy data
-    }
-    try {
-      const { data } = await supabase.from("clinics").select("*").order("created_at", { ascending: false });
-      if (data) {
-        setProviders(
-          data.map((c: any) => ({
-            id:             c.id,
-            name:           c.name,
-            type:           "healthcare" as const,
-            contact_email:  null,
-            contact_phone:  c.phone,
-            description:    null,
-            services:       c.services,
-            operating_hours: c.operating_hours,
-            is_active:      c.is_operational,
-          }))
-        );
-      }
-    } catch {
-      // ignore
+      setProviders([]);
     } finally {
       setLoading(false);
     }

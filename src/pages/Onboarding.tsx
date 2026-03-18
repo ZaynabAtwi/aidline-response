@@ -2,13 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { api } from "@/integrations/mysql/client";
 import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const Onboarding = () => {
   const { lang } = useLanguage();
-  const { user, setOnboarded } = useAuth();
+  const { user, saveOnboarding } = useAuth();
   const navigate = useNavigate();
   const isAr = lang === "ar";
 
@@ -39,7 +38,7 @@ const Onboarding = () => {
     if (!user || !ready) return;
     setSaving(true);
     try {
-      await api.auth.saveOnboarding({
+      await saveOnboarding({
         user_id: user.id,
         is_displaced: Boolean(isDisplaced),
         lost_house: Boolean(lostHouse),
@@ -55,7 +54,6 @@ const Onboarding = () => {
         urgency: "medium",
       });
     } finally {
-      setOnboarded(true);
       navigate(wantsToVolunteer ? "/volunteers" : "/", { replace: true });
       setSaving(false);
     }
