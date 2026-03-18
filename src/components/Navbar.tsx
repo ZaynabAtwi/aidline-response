@@ -46,8 +46,11 @@ const Navbar = () => {
           <ThemeToggle />
           <LanguageToggle />
           {user && (
-            <span className="rounded-lg bg-secondary px-2 py-1 text-[10px] font-mono text-muted-foreground" title={user.id}>
-              {user.id.slice(0, 8)}
+            <span
+              className="rounded-lg bg-secondary px-2 py-1 text-[10px] font-mono text-muted-foreground"
+              title={user.generated_identity_id || user.id}
+            >
+              {(user.generated_identity_id || user.id).slice(0, 12)}
             </span>
           )}
           <button

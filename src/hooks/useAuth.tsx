@@ -4,9 +4,22 @@ import { api } from '@/integrations/mysql/client';
 interface User {
   id: string;
   full_name: string | null;
+  mother_full_name?: string | null;
+  family_name?: string | null;
+  sejel_number?: string | null;
+  date_of_birth?: string | null;
+  generated_identity_id?: string | null;
+  intake_completed?: boolean;
   phone: string | null;
   preferred_language: string | null;
   created_at: string;
+}
+
+interface IdentityLoginInput {
+  full_name: string;
+  mother_full_name: string;
+  sejel_number: string;
+  date_of_birth: string;
 }
 
 interface AuthContextType {
@@ -14,6 +27,7 @@ interface AuthContextType {
   loading: boolean;
   isOnboarded: boolean;
   setOnboarded: (v: boolean) => void;
+  loginWithIdentity: (payload: IdentityLoginInput) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -31,26 +45,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const initAuth = async () => {
-    try {
-      const existingId = localStorage.getItem(USER_ID_KEY);
-      const { user: userData } = await api.auth.anonymousSignIn(existingId || undefined);
+    const existingId = localStorage.getItem(USER_ID_KEY);
+    if (!existingId) {
+      setLoading(false);
+      return;
+    }
 
+    try {
+      const { user: userData, onboarding_completed } = await api.auth.getProfile(existingId);
       if (userData) {
         setUser(userData);
-        localStorage.setItem(USER_ID_KEY, userData.id);
-        setIsOnboarded(localStorage.getItem('aidline_onboarded') === 'true');
+        const onboarded = Boolean(onboarding_completed);
+        setIsOnboarded(onboarded);
+        localStorage.setItem('aidline_onboarded', onboarded ? 'true' : 'false');
       }
     } catch {
-      // API might not be available - create a local-only user for demo
-      const existingId = localStorage.getItem(USER_ID_KEY);
-      if (existingId) {
-        setUser({ id: existingId, full_name: null, phone: null, preferred_language: null, created_at: new Date().toISOString() });
-        setIsOnboarded(localStorage.getItem('aidline_onboarded') === 'true');
-      } else {
-        const id = crypto.randomUUID();
-        localStorage.setItem(USER_ID_KEY, id);
-        setUser({ id, full_name: null, phone: null, preferred_language: null, created_at: new Date().toISOString() });
-      }
+      localStorage.removeItem(USER_ID_KEY);
+      localStorage.removeItem('aidline_onboarded');
+      setUser(null);
+      setIsOnboarded(false);
     } finally {
       setLoading(false);
     }
@@ -61,27 +74,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('aidline_onboarded', v ? 'true' : 'false');
   };
 
+  const loginWithIdentity = async (payload: IdentityLoginInput) => {
+    const { user: userData, onboarding_completed } = await api.auth.identityLogin(payload);
+    setUser(userData);
+    localStorage.setItem(USER_ID_KEY, userData.id);
+    const onboarded = Boolean(onboarding_completed);
+    setIsOnboarded(onboarded);
+    localStorage.setItem('aidline_onboarded', onboarded ? 'true' : 'false');
+  };
+
   const signOut = async () => {
     localStorage.removeItem('aidline_onboarded');
     localStorage.removeItem(USER_ID_KEY);
+    setUser(null);
     setIsOnboarded(false);
-
-    // Create new anonymous user
-    try {
-      const { user: newUser } = await api.auth.anonymousSignIn();
-      if (newUser) {
-        setUser(newUser);
-        localStorage.setItem(USER_ID_KEY, newUser.id);
-      }
-    } catch {
-      const id = crypto.randomUUID();
-      localStorage.setItem(USER_ID_KEY, id);
-      setUser({ id, full_name: null, phone: null, preferred_language: null, created_at: new Date().toISOString() });
-    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isOnboarded, setOnboarded, signOut }}>
+    <AuthContext.Provider value={{ user, loading, isOnboarded, setOnboarded, loginWithIdentity, signOut }}>
       {children}
     </AuthContext.Provider>
   );

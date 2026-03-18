@@ -18,20 +18,39 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   // Auth
   auth: {
+    identityLogin: (data: {
+      full_name: string;
+      mother_full_name: string;
+      sejel_number: string;
+      date_of_birth: string;
+    }) =>
+      request<{ user: any; roles: string[]; onboarding_completed: boolean }>('/auth/identity-login', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     anonymousSignIn: (existingId?: string) =>
       request<{ user: any }>('/auth/anonymous', {
         method: 'POST',
         body: JSON.stringify({ existingId }),
       }),
     getProfile: (userId: string) =>
-      request<{ user: any; roles: string[] }>(`/auth/profile/${userId}`),
+      request<{ user: any; roles: string[]; onboarding_completed: boolean }>(`/auth/profile/${userId}`),
     checkRole: (userId: string, role: string) =>
       request<{ hasRole: boolean }>(`/auth/role/${userId}/${role}`),
     saveOnboarding: (data: {
       user_id: string;
+      is_displaced?: boolean;
+      lost_house?: boolean;
+      occupation?: 'student' | 'freelancer' | 'employee' | 'unemployed' | 'looking_for_a_job';
+      major?: string;
+      employee_lost_job_due_to_war?: boolean;
       needs_shelter: boolean;
       needs_medication: boolean;
-      is_volunteering: boolean;
+      health_issues?: boolean;
+      health_issue_details?: string;
+      has_elderly_at_home?: boolean;
+      wants_to_volunteer?: boolean;
+      is_volunteering?: boolean;
       district?: string;
       urgency: string;
     }) =>
