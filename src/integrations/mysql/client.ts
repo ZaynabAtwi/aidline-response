@@ -39,17 +39,19 @@ export const api = {
       request<{ hasRole: boolean }>(`/auth/role/${userId}/${role}`),
     saveOnboarding: (data: {
       user_id: string;
-      is_displaced: boolean;
-      lost_house: boolean;
-      occupation: 'student' | 'freelancer' | 'employee' | 'unemployed' | 'looking_for_a_job';
+      is_displaced?: boolean;
+      lost_house?: boolean;
+      occupation?: 'student' | 'freelancer' | 'employee' | 'unemployed' | 'looking_for_a_job';
       major?: string;
-      employee_lost_job_due_to_war: boolean;
+      employee_lost_job_due_to_war?: boolean;
       needs_shelter: boolean;
       needs_medication: boolean;
-      health_issues: boolean;
+      health_issues?: boolean;
       health_issue_details?: string;
-      has_elderly_at_home: boolean;
-      wants_to_volunteer: boolean;
+      has_elderly_at_home?: boolean;
+      wants_to_volunteer?: boolean;
+      is_volunteering?: boolean;
+      district?: string;
       urgency: string;
     }) =>
       request<{ success: boolean }>('/auth/onboarding', {
