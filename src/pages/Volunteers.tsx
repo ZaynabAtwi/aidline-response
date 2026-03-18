@@ -2,7 +2,11 @@ import { useState, useEffect } from "react";
 import { Users, CheckCircle, Clock, Star } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { api } from "@/integrations/mysql/client";
+import {
+  listVolunteers,
+  registerVolunteer,
+  type Volunteer as VolunteerRecord,
+} from "@/services/volunteersService";
 
 const skillOptions = [
   "Medical", "Translation", "Logistics", "Driving", "Construction",
@@ -45,8 +49,8 @@ const Volunteers = () => {
 
   const fetchVolunteers = async () => {
     try {
-      const rows = await api.volunteers.getAll();
-      const normalized = rows.map((v: any) => ({
+      const rows = await listVolunteers();
+      const normalized = rows.map((v: VolunteerRecord) => ({
         ...v,
         skills: typeof v.skills === "string" ? JSON.parse(v.skills) : v.skills,
       }));
@@ -69,7 +73,7 @@ const Volunteers = () => {
     if (!user || selectedSkills.length === 0) return;
     setSubmitting(true);
     try {
-      await api.volunteers.register({ user_id: user.id, skills: selectedSkills, bio: bio || undefined });
+      await registerVolunteer({ user_id: user.id, skills: selectedSkills, bio: bio || undefined });
       setRegistered(true);
       setShowRegister(false);
       fetchVolunteers();

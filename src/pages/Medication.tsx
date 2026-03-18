@@ -2,8 +2,11 @@ import { useState, useEffect } from "react";
 import { Pill, Clock, CheckCircle, AlertTriangle, Search } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { medicationApi, providersApi } from "@/lib/api/client";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listMedicationRequests,
+  submitMedicationRequest,
+  getMedicationAvailability,
+} from "@/services/medicationService";
 
 const medications = [
   "Insulin (Rapid-acting)", "Insulin (Long-acting)", "Metformin", "Amlodipine",
@@ -66,28 +69,16 @@ const Medication = () => {
   }, [selectedMed]);
 
   const fetchRequests = async () => {
-    try {
-      const res = await medicationApi.list();
-      if (res.success && res.data) {
-        setRequests(res.data);
-        return;
-      }
-    } catch {
-      // fallback to Supabase
-    }
-    const { data } = await supabase
-      .from("medication_requests")
-      .select("*")
-      .eq("user_id", user!.id)
-      .order("created_at", { ascending: false });
-    if (data) setRequests(data as MedRequest[]);
+    if (!user) return;
+    const rows = await listMedicationRequests(user.id);
+    setRequests(rows as MedRequest[]);
   };
 
   const checkAvailability = async (medName: string) => {
     setCheckingAvailability(true);
     try {
-      const res = await providersApi.searchMedications(medName);
-      if (res.success) setAvailability(res.data);
+      const rows = await getMedicationAvailability(medName);
+      setAvailability(rows);
     } catch {
       setAvailability([]);
     } finally {
@@ -100,34 +91,19 @@ const Medication = () => {
     if (!selectedMed || !user) return;
     setLoading(true);
     try {
-      const res = await medicationApi.request({
+      await submitMedicationRequest({
+        user_id: user.id,
         medication_name: selectedMed,
         urgency,
         notes: notes || undefined,
       });
-      if (res.success) {
-        setSubmitted(true);
-        setSelectedMed("");
-        setNotes("");
-        fetchRequests();
-        setTimeout(() => setSubmitted(false), 3000);
-        return;
-      }
-    } catch {
-      // fallback to Supabase
-    }
-    const { error } = await supabase.from("medication_requests").insert({
-      user_id: user.id,
-      medication_name: selectedMed,
-      urgency: urgency as any,
-      notes: notes || null,
-    });
-    if (!error) {
       setSubmitted(true);
       setSelectedMed("");
       setNotes("");
       fetchRequests();
       setTimeout(() => setSubmitted(false), 3000);
+    } catch {
+      // Keep page usable even if backend call fails.
     }
     setLoading(false);
   };

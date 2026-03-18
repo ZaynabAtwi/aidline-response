@@ -5,11 +5,20 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { listProviders } from "@/services/providersService";
 import {
-  analyticsApi, medicationApi, sosApi, volunteersApi, chatApi,
-  providersApi,
-} from "@/lib/api/client";
+  listMedicationRequests,
+  updateMedicationRequestStatus,
+} from "@/services/medicationService";
+import { listSosAlerts, updateSosStatus } from "@/services/sosService";
+import { listVolunteers, updateVolunteerStatus } from "@/services/volunteersService";
+import {
+  getConversations as getChatConversations,
+  getMessages as getChatMessages,
+  sendMessage as sendChatMessage,
+  updateConversationStatus as updateChatConversationStatus,
+} from "@/services/chatService";
+import { getAnalyticsSummary, getMedicationShortages } from "@/services/analyticsService";
 import { Link, Navigate } from "react-router-dom";
 
 type Tab = "providers" | "medication" | "sos" | "volunteers" | "messages" | "analytics";
@@ -21,17 +30,17 @@ interface Provider    { id: string; name: string; type: string; contact_email: s
 
 const Dashboard = () => {
   const { t, lang } = useLanguage();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, checkRole } = useAuth();
   const [tab, setTab] = useState<Tab>("providers");
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (user) checkRole();
+    if (user) checkRoleState();
   }, [user]);
 
-  const checkRole = async () => {
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", user!.id).eq("role", "ngo_admin");
-    setIsAdmin(data && data.length > 0);
+  const checkRoleState = async () => {
+    const hasAdminRole = await checkRole("ngo_admin");
+    setIsAdmin(hasAdminRole);
   };
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">{t("common.loading")}</div>;
@@ -99,16 +108,14 @@ const ProviderPanel = ({ lang }: { lang: string }) => {
 
   const load = async () => {
     try {
-      const res = await providersApi.list({ pageSize: 100 });
-      if (res.success && res.data?.items) {
-        setProviders(res.data.items.map((p: any) => ({
-          ...p,
-          services: typeof p.services === "string" ? JSON.parse(p.services) : p.services,
-        })));
-        setLoading(false);
-        return;
-      }
-    } catch { /* fallback */ }
+      const rows = await listProviders();
+      setProviders(rows.map((p: any) => ({
+        ...p,
+        services: typeof p.services === "string" ? JSON.parse(p.services) : p.services,
+      })));
+    } catch {
+      setProviders([]);
+    }
     setLoading(false);
   };
 
@@ -170,19 +177,19 @@ const MedRequestList = ({ lang }: { lang: string }) => {
 
   const fetchAll = async () => {
     try {
-      const res = await medicationApi.list();
-      if (res.success && res.data) { setRequests(res.data); setLoading(false); return; }
-    } catch { /* fallback */ }
-    const { data } = await supabase.from("medication_requests").select("*").order("created_at", { ascending: false });
-    if (data) setRequests(data as MedRequest[]);
+      const rows = await listMedicationRequests();
+      setRequests(rows as MedRequest[]);
+    } catch {
+      setRequests([]);
+    }
     setLoading(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
     try {
-      await medicationApi.updateStatus(id, status);
+      await updateMedicationRequestStatus(id, status as any);
     } catch {
-      await supabase.from("medication_requests").update({ status: status as any }).eq("id", id);
+      // keep current state if update fails
     }
     fetchAll();
   };
@@ -237,21 +244,19 @@ const SOSAlertPanel = ({ lang }: { lang: string }) => {
 
   const fetchAlerts = async () => {
     try {
-      const res = await sosApi.list();
-      if (res.success && res.data) { setAlerts(res.data); setLoading(false); return; }
-    } catch { /* fallback */ }
-    const { data } = await supabase.from("sos_alerts").select("*").order("created_at", { ascending: false });
-    if (data) setAlerts(data as SOSAlert[]);
+      const rows = await listSosAlerts();
+      setAlerts(rows as SOSAlert[]);
+    } catch {
+      setAlerts([]);
+    }
     setLoading(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
     try {
-      await sosApi.updateStatus(id, status);
+      await updateSosStatus(id, status as any);
     } catch {
-      const update: any = { status };
-      if (status === "resolved") update.resolved_at = new Date().toISOString();
-      await supabase.from("sos_alerts").update(update).eq("id", id);
+      // keep UI responsive; errors are non-blocking for now
     }
     fetchAlerts();
   };
@@ -303,26 +308,22 @@ const VolunteerAssignment = ({ lang }: { lang: string }) => {
 
   const fetchV = async () => {
     try {
-      const res = await volunteersApi.list();
-      if (res.success && res.data) {
-        setVolunteers(res.data.map((v: any) => ({
-          ...v,
-          skills: typeof v.skills === "string" ? JSON.parse(v.skills) : v.skills,
-        })));
-        setLoading(false);
-        return;
-      }
-    } catch { /* fallback */ }
-    const { data } = await supabase.from("volunteers").select("*").order("created_at", { ascending: false });
-    if (data) setVolunteers(data as Volunteer[]);
+      const rows = await listVolunteers();
+      setVolunteers(rows.map((v: any) => ({
+        ...v,
+        skills: typeof v.skills === "string" ? JSON.parse(v.skills) : v.skills,
+      })));
+    } catch {
+      setVolunteers([]);
+    }
     setLoading(false);
   };
 
   const updateStatus = async (id: string, status: string) => {
     try {
-      await volunteersApi.updateStatus(id, status);
+      await updateVolunteerStatus(id, status as any);
     } catch {
-      await supabase.from("volunteers").update({ status: status as any }).eq("id", id);
+      // keep page functional if API update fails
     }
     fetchV();
   };
@@ -394,30 +395,29 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
   const fetchConversations = async () => {
     setLoading(true);
     try {
-      const res = await chatApi.getConversations();
-      if (res.success) { setConversations(res.data); setLoading(false); return; }
-    } catch { /* fallback */ }
-    const { data } = await (supabase as any).from("chat_conversations").select("*").order("updated_at", { ascending: false });
-    if (data) setConversations(data as ChatConversation[]);
+      const rows = await getChatConversations();
+      setConversations(rows as ChatConversation[]);
+    } catch {
+      setConversations([]);
+    }
     setLoading(false);
   };
 
   const selectConversation = async (convId: string) => {
     setSelectedConv(convId);
     try {
-      const res = await chatApi.getMessages(convId);
-      if (res.success) { setMessages(res.data); return; }
-    } catch { /* fallback */ }
-    const { data } = await (supabase as any).from("chat_messages").select("*").eq("conversation_id", convId).order("created_at", { ascending: true });
-    if (data) setMessages(data as ChatMessage[]);
-    await (supabase as any).from("chat_messages").update({ is_read: true }).eq("conversation_id", convId).eq("sender", "user").eq("is_read", false);
+      const rows = await getChatMessages(convId);
+      setMessages(rows as ChatMessage[]);
+    } catch {
+      setMessages([]);
+    }
   };
 
   const updateConvStatus = async (convId: string, status: string) => {
     try {
-      await chatApi.updateStatus(convId, status);
+      await updateChatConversationStatus(convId, status as any);
     } catch {
-      await (supabase as any).from("chat_conversations").update({ status, updated_at: new Date().toISOString() }).eq("id", convId);
+      // non-blocking
     }
     fetchConversations();
   };
@@ -426,10 +426,9 @@ const ChatMessagesPanel = ({ lang }: { lang: string }) => {
     if (!reply.trim() || !selectedConv || sending) return;
     setSending(true);
     try {
-      await chatApi.sendMessage(selectedConv, reply.trim());
+      await sendChatMessage(selectedConv, reply.trim(), "ngo");
     } catch {
-      await (supabase as any).from("chat_messages").insert({ conversation_id: selectedConv, sender: "ngo", message: reply.trim() });
-      await (supabase as any).from("chat_conversations").update({ updated_at: new Date().toISOString() }).eq("id", selectedConv);
+      // non-blocking fallback handled in service
     }
     setReply("");
     await selectConversation(selectedConv);
@@ -519,14 +518,13 @@ const AnalyticsPanel = ({ lang }: { lang: string }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      analyticsApi.summary().catch(() => null),
-      analyticsApi.medicationShortages().catch(() => null),
-    ]).then(([sum, sh]) => {
-      if (sum?.success) setSummary(sum.data);
-      if (sh?.success) setShortages(sh.data);
-      setLoading(false);
-    });
+    Promise.all([getAnalyticsSummary().catch(() => null), getMedicationShortages().catch(() => null)]).then(
+      ([sum, sh]) => {
+        if (sum) setSummary(sum);
+        if (sh) setShortages(sh);
+        setLoading(false);
+      }
+    );
   }, []);
 
   if (loading) return <LoadingState />;

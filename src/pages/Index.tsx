@@ -5,7 +5,7 @@ import logo from "@/assets/aidline-logo.svg";
 import { useLanguage } from "@/i18n/LanguageContext";
 import LanguageToggle from "@/components/LanguageToggle";
 import ThemeToggle from "@/components/ThemeToggle";
-import { analyticsApi } from "@/lib/api/client";
+import { getAnalyticsSummary } from "@/services/analyticsService";
 
 interface PlatformStats {
   total_providers: number;
@@ -28,15 +28,15 @@ const Index = () => {
   const [stats, setStats] = useState<PlatformStats | null>(null);
 
   useEffect(() => {
-    analyticsApi.summary().then((res) => {
-      if (res.success && res.data) {
+    getAnalyticsSummary()
+      .then((res) => {
         setStats({
-          total_providers:     res.data.providers?.active_providers  ?? 0,
-          available_volunteers: res.data.volunteers?.available_volunteers ?? 0,
-          total_requests:      res.data.requests?.total_requests      ?? 0,
+          total_providers: res.providers?.active_providers ?? 0,
+          available_volunteers: res.volunteers?.available_volunteers ?? 0,
+          total_requests: res.requests?.total_requests ?? 0,
         });
-      }
-    }).catch(() => {});
+      })
+      .catch(() => {});
   }, []);
 
   const actions = [

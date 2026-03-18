@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { ngoApi as mysqlNgoApi } from "@/lib/api/client";
+import { secureAction } from "@/services/ngoService";
 import {
   Shield, Lock, Building2, Pill, AlertTriangle, MessageSquare,
   Clock, RefreshCw, LogOut, Send
@@ -8,12 +8,8 @@ import {
 
 const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
-// ── API helper — routes through the MySQL backend ──
-const ngoApi = async (token: string, action: string, payload?: any) => {
-  const res = await mysqlNgoApi.action(token, action, payload);
-  if (!res.success) throw new Error((res as any).error || "API error");
-  return res.data;
-};
+// ── API helper — routes through service layer ──
+const ngoApi = async (token: string, action: string, payload?: any) => secureAction(token, action, payload);
 
 type Tab = "med_requests" | "sos" | "requests" | "notes";
 

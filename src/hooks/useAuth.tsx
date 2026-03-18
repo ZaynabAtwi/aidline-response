@@ -1,39 +1,20 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { api } from '@/integrations/mysql/client';
-
-interface User {
-  id: string;
-  full_name: string | null;
-  mother_full_name?: string | null;
-  family_name?: string | null;
-  sejel_number?: string | null;
-  date_of_birth?: string | null;
-  generated_identity_id?: string | null;
-  intake_completed?: boolean;
-  phone: string | null;
-  preferred_language: string | null;
-  created_at: string;
-}
-
-interface IdentityLoginInput {
-  full_name: string;
-  mother_full_name: string;
-  sejel_number: string;
-  date_of_birth: string;
-}
+import * as authService from '@/services/authService';
+import type { AuthUser as User, AuthSession, OnboardingPayload } from '@/services/authService';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   isOnboarded: boolean;
   setOnboarded: (v: boolean) => void;
-  loginWithIdentity: (payload: IdentityLoginInput) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthSession>;
+  logout: () => Promise<void>;
   signOut: () => Promise<void>;
+  saveOnboarding: (payload: OnboardingPayload) => Promise<void>;
+  checkRole: (role: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const USER_ID_KEY = 'aidline_user_id';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -45,23 +26,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const initAuth = async () => {
-    const existingId = localStorage.getItem(USER_ID_KEY);
-    if (!existingId) {
-      setLoading(false);
-      return;
-    }
-
     try {
-      const { user: userData, onboarding_completed } = await api.auth.getProfile(existingId);
-      if (userData) {
-        setUser(userData);
-        const onboarded = Boolean(onboarding_completed);
-        setIsOnboarded(onboarded);
-        localStorage.setItem('aidline_onboarded', onboarded ? 'true' : 'false');
+      const session = await authService.restoreSession();
+      if (session) {
+        setUser(session.user);
+        setIsOnboarded(session.onboardingCompleted);
       }
     } catch {
-      localStorage.removeItem(USER_ID_KEY);
-      localStorage.removeItem('aidline_onboarded');
       setUser(null);
       setIsOnboarded(false);
     } finally {
@@ -74,24 +45,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('aidline_onboarded', v ? 'true' : 'false');
   };
 
-  const loginWithIdentity = async (payload: IdentityLoginInput) => {
-    const { user: userData, onboarding_completed } = await api.auth.identityLogin(payload);
-    setUser(userData);
-    localStorage.setItem(USER_ID_KEY, userData.id);
-    const onboarded = Boolean(onboarding_completed);
+  const login = async (email: string, password: string) => {
+    const session = await authService.login(email, password);
+    setUser(session.user);
+    const onboarded = Boolean(session.onboardingCompleted);
     setIsOnboarded(onboarded);
     localStorage.setItem('aidline_onboarded', onboarded ? 'true' : 'false');
+    return session;
   };
 
-  const signOut = async () => {
+  const logout = async () => {
+    await authService.logout();
     localStorage.removeItem('aidline_onboarded');
-    localStorage.removeItem(USER_ID_KEY);
     setUser(null);
     setIsOnboarded(false);
   };
 
+  const saveOnboarding = async (payload: OnboardingPayload) => {
+    await authService.saveOnboarding(payload);
+    setOnboarded(true);
+  };
+
+  const checkRole = async (role: string) => {
+    if (!user) return false;
+    return authService.checkRole(user.id, role);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, isOnboarded, setOnboarded, loginWithIdentity, signOut }}>
+    <AuthContext.Provider value={{ user, loading, isOnboarded, setOnboarded, login, logout, signOut: logout, saveOnboarding, checkRole }}>
       {children}
     </AuthContext.Provider>
   );
