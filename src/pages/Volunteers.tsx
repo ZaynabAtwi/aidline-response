@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { Users, CheckCircle, Clock, Star } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
-  listVolunteers,
-  registerVolunteer,
-  type Volunteer as VolunteerRecord,
-} from "@/services/volunteersService";
+  getLocalizedLabel,
+  routingModuleLabels,
+  type RoutingModule,
+} from "@/lib/requestRouting";
+
 
 const skillOptions = [
   "Medical", "Translation", "Logistics", "Driving", "Construction",
@@ -21,24 +23,36 @@ interface Volunteer {
   status: string;
   rating: number | null;
   bio: string | null;
-  full_name?: string | null;
+  service_channels?: RoutingModule[];
+  assignment_capacity?: number | null;
+  routing_tags?: string[] | null;
   profiles?: { full_name: string | null } | null;
 }
 
+const serviceChannelOptions: RoutingModule[] = [
+  "healthcare_network",
+  "medication_supply",
+  "ngo_coordination",
+  "secure_messaging",
+];
+
 const statusConfig: Record<string, { color: string; icon: typeof CheckCircle }> = {
-  available:   { color: "text-success",     icon: CheckCircle },
-  assigned:    { color: "text-accent",      icon: Clock },
+  available: { color: "text-success", icon: CheckCircle },
+  assigned: { color: "text-accent", icon: Clock },
   unavailable: { color: "text-destructive", icon: Clock },
 };
 
 const Volunteers = () => {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
-  const isAr = lang === "ar";
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRegister, setShowRegister] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedChannels, setSelectedChannels] = useState<RoutingModule[]>([
+    "ngo_coordination",
+  ]);
+  const [assignmentCapacity, setAssignmentCapacity] = useState(1);
   const [bio, setBio] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [registered, setRegistered] = useState(false);
@@ -48,18 +62,12 @@ const Volunteers = () => {
   }, []);
 
   const fetchVolunteers = async () => {
-    try {
-      const rows = await listVolunteers();
-      const normalized = rows.map((v: VolunteerRecord) => ({
-        ...v,
-        skills: typeof v.skills === "string" ? JSON.parse(v.skills) : v.skills,
-      }));
-      setVolunteers(normalized);
-    } catch {
-      setVolunteers([]);
-    } finally {
-      setLoading(false);
-    }
+    const { data } = await supabase
+      .from("volunteers")
+      .select("*")
+      .order("rating", { ascending: false });
+    if (data) setVolunteers(data as Volunteer[]);
+    setLoading(false);
   };
 
   const toggleSkill = (skill: string) => {
@@ -68,18 +76,38 @@ const Volunteers = () => {
     );
   };
 
+  const toggleChannel = (channel: RoutingModule) => {
+    setSelectedChannels((prev) =>
+      prev.includes(channel)
+        ? prev.filter((item) => item !== channel)
+        : [...prev, channel],
+    );
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || selectedSkills.length === 0) return;
+    if (!user || selectedSkills.length === 0 || selectedChannels.length === 0) return;
     setSubmitting(true);
-    try {
-      await registerVolunteer({ user_id: user.id, skills: selectedSkills, bio: bio || undefined });
+
+    const insertData = {
+      user_id: user.id,
+      skills: selectedSkills,
+      bio: bio || null,
+      status: "available" as const,
+      service_channels: selectedChannels,
+      assignment_capacity: assignmentCapacity,
+      availability_notes: bio || null,
+      routing_tags: selectedSkills.map((skill) =>
+        skill.toLowerCase().replaceAll(" ", "_"),
+      ),
+    };
+
+    const { error } = await supabase.from("volunteers").insert(insertData);
+    if (!error) {
       setRegistered(true);
       setShowRegister(false);
       fetchVolunteers();
       setTimeout(() => setRegistered(false), 3000);
-    } catch {
-      // Keep form open when registration fails
     }
     setSubmitting(false);
   };
@@ -114,6 +142,12 @@ const Volunteers = () => {
           <form onSubmit={handleRegister} className="mb-8 rounded-xl border border-border bg-card p-6">
             <h2 className="mb-4 font-heading text-lg font-semibold text-foreground">{t("vol.register")}</h2>
 
+            <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+              {lang === "ar"
+                ? "تُسند المهام للمتطوعين حسب المهارة وقنوات الخدمة والتوافر، وليس حسب القرب الجغرافي."
+                : "Volunteer tasks are assigned by skills, service channels, and availability rather than geographic proximity."}
+            </div>
+
             <div className="mb-4">
               <label className="mb-2 block text-sm text-muted-foreground">{t("vol.selectSkills")}</label>
               <div className="flex flex-wrap gap-2">
@@ -134,10 +168,49 @@ const Volunteers = () => {
               </div>
             </div>
 
-            <div className="mb-4 rounded-lg border border-border bg-secondary/30 px-4 py-3 text-xs text-muted-foreground">
-              {isAr
-                ? "ستتم مطابقتك مع الطلبات بناءً على مهاراتك وتوفرك، دون الحاجة إلى بيانات موقعك."
-                : "You will be matched with requests based on your skills and availability, without requiring location data."}
+            <div className="mb-4">
+              <label className="mb-2 block text-sm text-muted-foreground">
+                {lang === "ar" ? "قنوات الخدمة" : "Service channels"}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {serviceChannelOptions.map((channel) => (
+                  <button
+                    key={channel}
+                    type="button"
+                    onClick={() => toggleChannel(channel)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                      selectedChannels.includes(channel)
+                        ? "bg-primary text-primary-foreground ring-2 ring-ring"
+                        : "bg-secondary text-secondary-foreground"
+                    }`}
+                  >
+                    {getLocalizedLabel(routingModuleLabels, channel, lang)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="mb-2 block text-sm text-muted-foreground">
+                {lang === "ar" ? "السعة المتاحة لكل مهمة" : "Assignment capacity"}
+              </label>
+              <div className="flex gap-2">
+                {[1, 2, 3].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setAssignmentCapacity(value)}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                      assignmentCapacity === value
+                        ? "bg-success text-success-foreground ring-2 ring-ring"
+                        : "bg-secondary text-secondary-foreground"
+                    }`}
+                  >
+                    {value}
+                    {value === 3 ? "+" : ""}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="mb-6">
@@ -154,7 +227,7 @@ const Volunteers = () => {
             <div className="flex gap-3">
               <button
                 type="submit"
-                disabled={selectedSkills.length === 0 || submitting}
+                disabled={selectedSkills.length === 0 || selectedChannels.length === 0 || submitting}
                 className="flex-1 rounded-lg bg-success py-3 font-heading font-semibold text-success-foreground transition-colors hover:bg-success/90 disabled:opacity-50"
               >
                 {t("vol.submitRegistration")}
@@ -178,14 +251,22 @@ const Volunteers = () => {
             {volunteers.map((v) => {
               const config = statusConfig[v.status] || statusConfig.available;
               const StatusIcon = config.icon;
-              const statusLabel = t(`vol.${v.status}` as any) || v.status;
+              const statusKey =
+                v.status === "available"
+                  ? "vol.available"
+                  : v.status === "assigned"
+                    ? "vol.assigned"
+                    : v.status === "unavailable"
+                      ? "vol.unavailable"
+                      : null;
+              const statusLabel = statusKey ? t(statusKey) : v.status;
               return (
                 <div key={v.id} className="rounded-xl border border-border bg-card p-5">
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-heading text-lg font-semibold text-foreground">
-                          {v.full_name || (v.bio ? v.bio.slice(0, 30) : "Volunteer")}
+                          {v.bio ? v.bio.slice(0, 30) : `Volunteer`}
                         </h3>
                         <StatusIcon className={`h-4 w-4 ${config.color}`} />
                         <span className={`text-xs capitalize ${config.color}`}>{statusLabel}</span>
@@ -198,12 +279,31 @@ const Volunteers = () => {
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {(Array.isArray(v.skills) ? v.skills : []).map((s) => (
+                    {v.skills.map((s) => (
                       <span key={s} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                         {s}
                       </span>
                     ))}
                   </div>
+                  {v.service_channels && v.service_channels.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {v.service_channels.map((channel) => (
+                        <span
+                          key={channel}
+                          className="rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success"
+                        >
+                          {getLocalizedLabel(routingModuleLabels, channel, lang)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {v.assignment_capacity ? (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {lang === "ar"
+                        ? `السعة الحالية لكل مهمة: ${v.assignment_capacity}`
+                        : `Current assignment capacity: ${v.assignment_capacity}`}
+                    </p>
+                  ) : null}
                 </div>
               );
             })}
