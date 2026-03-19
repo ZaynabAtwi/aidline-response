@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageCircle, Send, AlertTriangle, RefreshCw, Check, Eye } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { ensureConversation, getMessages, sendMessage } from "@/services/chatService";
+import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 
 interface Message {
@@ -30,10 +30,6 @@ const Chat = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (user) loadConversation();
-  }, [user]);
-
-  useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
     return () => clearInterval(timer);
@@ -43,29 +39,47 @@ const Chat = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const loadConversation = async () => {
+  const fetchMessages = useCallback(async (convId: string) => {
+    const { data } = await supabase
+      .from("chat_messages")
+      .select("*")
+      .eq("conversation_id", convId)
+      .order("created_at", { ascending: true });
+    if (data) setMessages(data as Message[]);
+  }, []);
+
+  const loadConversation = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
-    const conversation = await ensureConversation(user!.id);
-    const convId = conversation?.id;
+    const { data: convos } = await supabase
+      .from("chat_conversations")
+      .select("id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    let convId = convos?.[0]?.id;
+    if (!convId) {
+      const { data: newConv } = await supabase
+        .from("chat_conversations")
+        .insert({ user_id: user.id })
+        .select("id")
+        .single();
+      convId = newConv?.id;
+    }
+
     if (convId) {
       setConversationId(convId);
-      await fetchMessagesForConversation(convId);
+      await fetchMessages(convId);
     }
     setLoading(false);
-  };
+  }, [fetchMessages, user]);
 
-  const fetchMessagesForConversation = async (convId: string) => {
-    const rows = await getMessages(convId);
-    setMessages(
-      rows.map((row) => ({
-        id: row.id,
-        sender: row.sender,
-        message: row.message,
-        is_read: row.is_read,
-        created_at: row.created_at,
-      }))
-    );
-  };
+  useEffect(() => {
+    if (user) {
+      void loadConversation();
+    }
+  }, [loadConversation, user]);
 
   const handleSend = async () => {
     if (!input.trim() || !conversationId || sending) return;
@@ -78,15 +92,22 @@ const Chat = () => {
     }
 
     setSending(true);
-    await sendMessage(conversationId, input.trim(), "user");
-    setInput("");
-    setLastSentAt(Date.now());
-    await fetchMessagesForConversation(conversationId);
+    const { error } = await supabase.from("chat_messages").insert({
+      conversation_id: conversationId,
+      sender: "user",
+      message: input.trim(),
+    });
+
+    if (!error) {
+      setInput("");
+      setLastSentAt(Date.now());
+      await fetchMessages(conversationId);
+    }
     setSending(false);
   };
 
   const handleRefresh = () => {
-    if (conversationId) fetchMessagesForConversation(conversationId);
+    if (conversationId) fetchMessages(conversationId);
   };
 
   const getStatusIcon = (msg: Message) => {
@@ -140,13 +161,6 @@ const Chat = () => {
               {isAr ? "أرقام الطوارئ →" : "Emergency Numbers →"}
             </Link>
           </div>
-        </div>
-
-        {/* Secure channel notice */}
-        <div className="mb-4 rounded-lg border border-border bg-secondary/30 px-4 py-2 text-xs text-muted-foreground">
-          {isAr
-            ? "🔒 جلسة محمية — لا يتم مشاركة بيانات هويتك مع جهات خارجية."
-            : "🔒 Secure session — your identity is not shared with external parties."}
         </div>
 
         {/* Messages Area */}
