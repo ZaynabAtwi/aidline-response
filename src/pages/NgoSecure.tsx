@@ -1,22 +1,45 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { secureAction } from "@/services/ngoService";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Shield, Lock, Building2, Pill, AlertTriangle, MessageSquare,
-  Clock, RefreshCw, LogOut, Send
+  Save, X, Edit2, Clock, RefreshCw, LogOut, Send
 } from "lucide-react";
+import {
+  buildCrisisIntelligence,
+  getLocalizedLabel,
+  priorityLevelLabels,
+  responderTypeLabels,
+  routingModuleLabels,
+  routingStatusLabels,
+  type PriorityLevel,
+  type ResponderType,
+  type RoutingModule,
+  type RoutingStatus,
+} from "@/lib/requestRouting";
 
 const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
-// ── API helper — routes through service layer ──
-const ngoApi = async (token: string, action: string, payload?: any) => secureAction(token, action, payload);
+// ── API helper ──
+const ngoApi = async (
+  token: string,
+  action: string,
+  payload?: Record<string, unknown>,
+) => {
+  const { data, error } = await supabase.functions.invoke("ngo-secure", {
+    body: { token, action, payload },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data?.data;
+};
 
-type Tab = "med_requests" | "sos" | "requests" | "notes";
+type Tab = "med_requests" | "sos" | "shelters" | "notes";
 
-interface MedReq   { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; }
-interface SOSAlert { id: string; message: string | null; status: string; created_at: string; }
-interface Note     { id: string; content: string; created_at: string; }
-interface ServiceRequest { id: string; type: string; title: string; urgency: string; status: string; created_at: string; category?: string; priority_score?: number; }
+interface Shelter { id: string; name: string; address: string | null; capacity: number; available_spots: number; is_operational: boolean; }
+interface MedReq { id: string; medication_name: string; urgency: string; status: string; created_at: string; notes: string | null; priority_level?: PriorityLevel | null; routing_module?: RoutingModule | null; routing_status?: RoutingStatus | null; required_responder?: ResponderType | null; classification_summary?: string | null; }
+interface SOSAlert { id: string; message: string | null; status: string; created_at: string; priority_level?: PriorityLevel | null; routing_module?: RoutingModule | null; routing_status?: RoutingStatus | null; required_responder?: ResponderType | null; classification_summary?: string | null; }
+interface Note { id: string; content: string; created_at: string; }
 
 const urgencyColor: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
@@ -80,9 +103,13 @@ const NgoSecure = () => {
   // Data
   const [medRequests, setMedRequests] = useState<MedReq[]>([]);
   const [sosAlerts, setSosAlerts] = useState<SOSAlert[]>([]);
-  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [shelters, setShelters] = useState<Shelter[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Shelter editing
+  const [editingShelter, setEditingShelter] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState({ capacity: 0, available_spots: 0, is_operational: true });
 
   // Notes
   const [noteInput, setNoteInput] = useState("");
@@ -111,15 +138,15 @@ const NgoSecure = () => {
     if (!token) return;
     setLoading(true);
     try {
-      const [meds, sos, reqs, n] = await Promise.all([
+      const [meds, sos, shel, n] = await Promise.all([
         ngoApi(token, "get_medication_requests"),
         ngoApi(token, "get_sos_alerts"),
-        ngoApi(token, "get_requests"),
+        ngoApi(token, "get_shelters"),
         ngoApi(token, "get_notes"),
       ]);
       setMedRequests(meds || []);
       setSosAlerts(sos || []);
-      setServiceRequests(reqs || []);
+      setShelters(shel || []);
       setNotes(n || []);
     } catch { /* silent */ }
     setLoading(false);
@@ -128,6 +155,12 @@ const NgoSecure = () => {
   useEffect(() => {
     if (authenticated) fetchData();
   }, [authenticated, fetchData]);
+
+  const saveShelter = async (id: string) => {
+    await ngoApi(token, "update_shelter", { id, ...editValues });
+    setEditingShelter(null);
+    fetchData();
+  };
 
   const updateSos = async (id: string, status: string) => {
     await ngoApi(token, "update_sos_status", { id, status });
@@ -200,11 +233,25 @@ const NgoSecure = () => {
 
   // ─── SECURE DASHBOARD ───
   const tabs: { id: Tab; label: string; icon: typeof Building2; count?: number }[] = [
-    { id: "sos",          label: isAr ? "تنبيهات SOS"    : "SOS Alerts",         icon: AlertTriangle,  count: sosAlerts.filter(a => a.status === "active").length },
-    { id: "med_requests", label: isAr ? "طلبات الأدوية"  : "Med Requests",        icon: Pill,           count: medRequests.filter(m => m.status === "pending").length },
-    { id: "requests",     label: isAr ? "الطلبات الموجَّهة" : "Routed Requests",  icon: Building2,      count: serviceRequests.filter(r => r.status === "routed").length },
-    { id: "notes",        label: isAr ? "ملاحظات التنسيق" : "Coordination Notes", icon: MessageSquare },
+    { id: "sos", label: isAr ? "تنبيهات SOS" : "SOS Alerts", icon: AlertTriangle, count: sosAlerts.filter(a => a.status === "active").length },
+    { id: "med_requests", label: isAr ? "طلبات الأدوية" : "Med Requests", icon: Pill, count: medRequests.filter(m => m.status === "pending").length },
+    { id: "shelters", label: isAr ? "الملاجئ" : "Shelters", icon: Building2 },
+    { id: "notes", label: isAr ? "ملاحظات التنسيق" : "Coordination Notes", icon: MessageSquare },
   ];
+  const crisisSummary = buildCrisisIntelligence([
+    ...sosAlerts.map((alert) => ({
+      assistance_category: "medical_emergency" as const,
+      priority_level: alert.priority_level ?? "critical",
+      routing_module: alert.routing_module ?? "healthcare_network",
+      routing_status: alert.routing_status ?? "routed",
+    })),
+    ...medRequests.map((request) => ({
+      assistance_category: "medication_need" as const,
+      priority_level: request.priority_level ?? (request.urgency as PriorityLevel),
+      routing_module: request.routing_module ?? "medication_supply",
+      routing_status: request.routing_status ?? "routed",
+    })),
+  ]);
 
   return (
     <div className="min-h-screen bg-[hsl(220,25%,6%)]">
@@ -230,6 +277,43 @@ const NgoSecure = () => {
       </div>
 
       <div className="mx-auto max-w-5xl px-4 py-6">
+        <div className="mb-6 grid gap-3 md:grid-cols-4">
+          {[
+            {
+              label: isAr ? "إجمالي الحالات" : "Total cases",
+              value: crisisSummary.totalCases,
+              tone: "text-[hsl(210,20%,92%)]",
+            },
+            {
+              label: isAr ? "حالات حرجة" : "Critical cases",
+              value: crisisSummary.criticalCases,
+              tone: "text-[hsl(0,80%,55%)]",
+            },
+            {
+              label: isAr ? "حالات مفتوحة" : "Open cases",
+              value: crisisSummary.openCases,
+              tone: "text-[hsl(185,70%,50%)]",
+            },
+            {
+              label: isAr ? "حالات مصعّدة" : "Escalated cases",
+              value: crisisSummary.escalatedCases,
+              tone: "text-[hsl(38,90%,55%)]",
+            },
+          ].map((metric) => (
+            <div
+              key={metric.label}
+              className="rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,10%)] p-4"
+            >
+              <p className="text-xs uppercase tracking-wide text-[hsl(215,15%,45%)]">
+                {metric.label}
+              </p>
+              <p className={`mt-2 font-heading text-3xl font-bold ${metric.tone}`}>
+                {metric.value}
+              </p>
+            </div>
+          ))}
+        </div>
+
         {/* Tabs */}
         <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,8%)] p-1">
           {tabs.map((t) => (
@@ -268,6 +352,33 @@ const NgoSecure = () => {
                       <Clock className="h-3 w-3" />
                       {new Date(a.created_at).toLocaleString()}
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {a.priority_level && (
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${urgencyColor[a.priority_level] || ""}`}>
+                          {getLocalizedLabel(priorityLevelLabels, a.priority_level, lang)}
+                        </span>
+                      )}
+                      {a.routing_module && (
+                        <span className="rounded-full bg-[hsl(185,70%,42%)]/10 px-3 py-1 text-[11px] font-medium text-[hsl(185,70%,50%)]">
+                          {getLocalizedLabel(routingModuleLabels, a.routing_module, lang)}
+                        </span>
+                      )}
+                      {a.required_responder && (
+                        <span className="rounded-full bg-[hsl(38,90%,55%)]/10 px-3 py-1 text-[11px] font-medium text-[hsl(38,90%,55%)]">
+                          {getLocalizedLabel(responderTypeLabels, a.required_responder, lang)}
+                        </span>
+                      )}
+                      {a.routing_status && (
+                        <span className="rounded-full bg-[hsl(220,18%,16%)] px-3 py-1 text-[11px] font-medium text-[hsl(215,15%,55%)]">
+                          {getLocalizedLabel(routingStatusLabels, a.routing_status, lang)}
+                        </span>
+                      )}
+                    </div>
+                    {a.classification_summary && (
+                      <p className="mt-2 text-xs leading-relaxed text-[hsl(215,15%,55%)]">
+                        {a.classification_summary}
+                      </p>
+                    )}
                   </div>
                   <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${sosColor[a.status] || ""}`}>
                     {a.status}
@@ -304,9 +415,33 @@ const NgoSecure = () => {
                     <h3 className="font-heading text-sm font-semibold text-[hsl(210,20%,92%)]">{r.medication_name}</h3>
                     <p className="mt-0.5 text-xs text-[hsl(215,15%,45%)]">{new Date(r.created_at).toLocaleString()}</p>
                     {r.notes && <p className="mt-1 text-xs text-[hsl(215,15%,55%)]">{r.notes}</p>}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {r.routing_module && (
+                        <span className="rounded-full bg-[hsl(185,70%,42%)]/10 px-3 py-1 text-[11px] font-medium text-[hsl(185,70%,50%)]">
+                          {getLocalizedLabel(routingModuleLabels, r.routing_module, lang)}
+                        </span>
+                      )}
+                      {r.required_responder && (
+                        <span className="rounded-full bg-[hsl(38,90%,55%)]/10 px-3 py-1 text-[11px] font-medium text-[hsl(38,90%,55%)]">
+                          {getLocalizedLabel(responderTypeLabels, r.required_responder, lang)}
+                        </span>
+                      )}
+                      {r.routing_status && (
+                        <span className="rounded-full bg-[hsl(220,18%,16%)] px-3 py-1 text-[11px] font-medium text-[hsl(215,15%,55%)]">
+                          {getLocalizedLabel(routingStatusLabels, r.routing_status, lang)}
+                        </span>
+                      )}
+                    </div>
+                    {r.classification_summary && (
+                      <p className="mt-2 text-xs leading-relaxed text-[hsl(215,15%,55%)]">
+                        {r.classification_summary}
+                      </p>
+                    )}
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColor[r.urgency] || ""}`}>
-                    {r.urgency}
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColor[r.priority_level || r.urgency] || ""}`}>
+                    {r.priority_level
+                      ? getLocalizedLabel(priorityLevelLabels, r.priority_level, lang)
+                      : r.urgency}
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -329,29 +464,66 @@ const NgoSecure = () => {
           </div>
         )}
 
-        {/* Routed Service Requests */}
-        {tab === "requests" && (
+        {/* Shelters */}
+        {tab === "shelters" && (
           <div className="space-y-3">
-            {serviceRequests.length === 0 && <EmptyBox text={isAr ? "لا توجد طلبات موجَّهة" : "No routed requests"} />}
-            {serviceRequests.map((r) => (
-              <div key={r.id} className="rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,10%)] p-5">
+            {shelters.length === 0 && <EmptyBox text={isAr ? "لا توجد ملاجئ" : "No shelters"} />}
+            {shelters.map((s) => (
+              <div key={s.id} className="rounded-xl border border-[hsl(220,15%,15%)] bg-[hsl(220,22%,10%)] p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="font-heading text-sm font-semibold text-[hsl(210,20%,92%)]">{r.title}</h3>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-[hsl(215,15%,45%)]">
-                      <span className="capitalize">{r.type}</span>
-                      {r.category && <span>· {r.category.replace(/_/g, " ")}</span>}
-                      {r.priority_score !== undefined && <span>· Priority: {r.priority_score}</span>}
+                    <h3 className="font-heading text-base font-semibold text-[hsl(210,20%,92%)]">{s.name}</h3>
+                    {s.address && <p className="text-xs text-[hsl(215,15%,45%)]">{s.address}</p>}
+                  </div>
+                  {editingShelter === s.id ? (
+                    <div className="flex gap-2">
+                      <button onClick={() => saveShelter(s.id)} className="rounded-lg bg-[hsl(150,60%,42%)] p-2 text-[hsl(220,25%,8%)]"><Save className="h-4 w-4" /></button>
+                      <button onClick={() => setEditingShelter(null)} className="rounded-lg bg-[hsl(220,18%,16%)] p-2 text-[hsl(215,15%,55%)]"><X className="h-4 w-4" /></button>
                     </div>
-                    <p className="mt-0.5 flex items-center gap-1 text-xs text-[hsl(215,15%,40%)]">
-                      <Clock className="h-3 w-3" />{new Date(r.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${urgencyColor[r.urgency] || ""}`}>{r.urgency}</span>
-                    <span className="text-xs text-[hsl(215,15%,50%)] capitalize">{r.status}</span>
-                  </div>
+                  ) : (
+                    <button
+                      onClick={() => { setEditingShelter(s.id); setEditValues({ capacity: s.capacity, available_spots: s.available_spots, is_operational: s.is_operational }); }}
+                      className="rounded-lg bg-[hsl(220,18%,16%)] p-2 text-[hsl(215,15%,55%)] hover:text-[hsl(210,20%,85%)]"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
+
+                {editingShelter === s.id ? (
+                  <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1 block text-xs text-[hsl(215,15%,45%)]">{isAr ? "السعة" : "Capacity"}</label>
+                      <input type="number" value={editValues.capacity} onChange={(e) => setEditValues({ ...editValues, capacity: +e.target.value })}
+                        className="w-full rounded-lg border border-[hsl(220,15%,20%)] bg-[hsl(220,25%,8%)] px-3 py-2 text-sm text-[hsl(210,20%,92%)] focus:ring-2 focus:ring-[hsl(185,70%,42%)]" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-[hsl(215,15%,45%)]">{isAr ? "المتاح" : "Available"}</label>
+                      <input type="number" value={editValues.available_spots} onChange={(e) => setEditValues({ ...editValues, available_spots: +e.target.value })}
+                        className="w-full rounded-lg border border-[hsl(220,15%,20%)] bg-[hsl(220,25%,8%)] px-3 py-2 text-sm text-[hsl(210,20%,92%)] focus:ring-2 focus:ring-[hsl(185,70%,42%)]" />
+                    </div>
+                    <label className="flex items-end gap-2 text-sm text-[hsl(210,20%,85%)]">
+                      <input type="checkbox" checked={editValues.is_operational} onChange={(e) => setEditValues({ ...editValues, is_operational: e.target.checked })}
+                        className="h-4 w-4 rounded border-[hsl(220,15%,20%)]" />
+                      {isAr ? "تعمل" : "Operational"}
+                    </label>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex items-center gap-4">
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${s.is_operational ? "bg-[hsl(150,60%,42%)]/15 text-[hsl(150,60%,50%)]" : "bg-[hsl(0,80%,55%)]/15 text-[hsl(0,80%,55%)]"}`}>
+                      {s.is_operational ? (isAr ? "تعمل" : "Operational") : (isAr ? "متوقفة" : "Closed")}
+                    </span>
+                    <span className="text-sm text-[hsl(215,15%,55%)]">
+                      <span className="font-semibold text-[hsl(210,20%,92%)]">{s.available_spots}</span>/{s.capacity}
+                    </span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-[hsl(220,15%,16%)]">
+                      <div
+                        className={`h-full rounded-full ${s.available_spots > 0 ? "bg-[hsl(150,60%,42%)]" : "bg-[hsl(38,90%,55%)]"}`}
+                        style={{ width: `${s.capacity > 0 ? ((s.capacity - s.available_spots) / s.capacity) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
