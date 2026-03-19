@@ -11,32 +11,43 @@ export const translations = {
   'nav.sos': { ar: 'طوارئ', en: 'SOS' },
 
   // Home page
-  'home.tagline': { ar: 'منصة تنسيق أزمات فورية. أرسل الطلبات وتواصل مع الجهات المناسبة بأمان.', en: 'A real-time crisis coordination platform. Submit requests and connect securely with the right responders.' },
+   'home.tagline': { ar: 'نسّق طلبات الأزمات حسب الحاجة والأولوية. يوجّه AidLine الرعاية الصحية والأدوية والدعم الإنساني عبر قنوات آمنة من دون تتبع الموقع.', en: 'Coordinate crisis requests by need and urgency. AidLine routes healthcare, medication, and humanitarian support through secure channels without location tracking.' },
   'home.sos': { ar: 'طوارئ SOS', en: 'SOS Emergency' },
   'home.findShelter': { ar: 'ابحث عن ملجأ', en: 'Find Shelter' },
   'home.findShelterDesc': { ar: 'اطّلع على الملاجئ المتاحة ضمن شبكة الاستجابة', en: 'View available shelters across the response network' },
   'home.findFood': { ar: 'ابحث عن طعام', en: 'Find Food' },
   'home.findFoodDesc': { ar: 'نقاط توزيع الطعام النشطة', en: 'Active food distribution points' },
   'home.findClinics': { ar: 'ابحث عن عيادات', en: 'Find Clinics' },
-  'home.findClinicsDesc': { ar: 'عيادات وصيدليات ضمن الشبكة', en: 'Clinics & pharmacies in the network' },
+ 'home.medicationDesc': { ar: 'وجّه احتياجات الأدوية إلى الصيدليات وشركاء الدعم', en: 'Route medication needs to pharmacies and aid partners' },
   'home.medication': { ar: 'الأدوية', en: 'Medication' },
   'home.medicationDesc': { ar: 'سجّل احتياجاتك الدوائية', en: 'Register medication needs' },
   'home.volunteer': { ar: 'تطوّع', en: 'Volunteer' },
-  'home.volunteerDesc': { ar: 'سجّل مهاراتك للحصول على تكليفات موجّهة', en: 'Register skills for structured assignments' },
+  'home.volunteerDesc': { ar: 'home.volunteerDesc': { ar: 'سجّل مهاراتك للمهام المنظمة', en: 'Register skills for structured assignments' },
   'home.activeShelters': { ar: 'ملاجئ نشطة', en: 'Active Shelters' },
   'home.volunteersCount': { ar: 'متطوعون', en: 'Volunteers' },
   'home.ngosActive': { ar: 'منظمات نشطة', en: 'NGOs Active' },
 
-  // Shelters
-  'shelters.title': { ar: 'الملاجئ', en: 'Shelters' },
-  'shelters.subtitle': { ar: 'الملاجئ المتاحة ضمن شبكة المنصة. الأخضر يعني وجود أماكن متاحة.', en: 'Available shelters within the platform network. Green means beds available.' },
-  'shelters.available': { ar: 'متاح', en: 'available' },
-  'shelters.gpsSearch': { ar: 'توجيه تلقائي', en: 'Smart routing' },
-  'shelters.manualSearch': { ar: 'البحث يدوياً', en: 'Manual Search' },
-  'shelters.searchPlaceholder': { ar: 'ابحث عن ملجأ بالاسم أو العنوان...', en: 'Search by name or address...' },
-  'shelters.locating': { ar: 'جاري معالجة الطلب...', en: 'Processing request...' },
+   'home.pipelineTitle': { ar: 'كيف يعمل AidLine بدون موقع', en: 'How AidLine works without location data' },
+  'home.pipelineSubtitle': { ar: 'تنتقل كل حالة من الإدخال إلى الفرز ثم التوجيه والاتصال الآمن حتى الإغلاق، بينما تغذي البيانات المجهولة لوحات التحليل المؤسسي.', en: 'Every case moves from intake to triage, routing, secure communication, and resolution, while anonymous data feeds institutional intelligence.' },
+  'home.pipeline.request.title': { ar: 'إدخال الطلب', en: 'Request entry' },
+  'home.pipeline.request.body': { ar: 'يرسل المستخدم نوع المساعدة والوصف ومستوى الاستعجال والمرفقات الاختيارية.', en: 'The user submits assistance type, description, urgency, and any optional attachments.' },
+  'home.pipeline.triage.title': { ar: 'الفرز الذكي', en: 'AI triage' },
+  'home.pipeline.triage.body': { ar: 'يتم تصنيف الحالة تلقائياً حسب الفئة والأولوية ونوع المستجيب المطلوب.', en: 'The case is automatically classified by category, priority, and responder type.' },
+  'home.pipeline.routing.title': { ar: 'توجيه الخدمة', en: 'Service routing' },
+  'home.pipeline.routing.body': { ar: 'تُرسل الحالة إلى شبكة الرعاية الصحية أو الأدوية أو تنسيق المنظمات بحسب الحاجة.', en: 'The case is routed to healthcare, medication, or NGO coordination based on need.' },
+  'home.pipeline.communication.title': { ar: 'اتصال آمن', en: 'Secure communication' },
+  'home.pipeline.communication.body': { ar: 'بعد قبول الحالة تصبح الرسائل الآمنة قناة التنسيق الأساسية مع المستخدم.', en: 'Once accepted, secure messaging becomes the primary coordination channel with the user.' },
+  'home.pipeline.resolution.title': { ar: 'حل الحالة', en: 'Case resolution' },
+  'home.pipeline.resolution.body': { ar: 'يقدم المستجيب التعليمات أو التأكيد أو المتابعة حتى إغلاق الحالة.', en: 'Responders provide instructions, confirmations, or follow-up until the case is closed.' },
+  'home.pipeline.intelligence.title': { ar: 'ذكاء الأزمات', en: 'Crisis intelligence' },
+  'home.pipeline.intelligence.body': { ar: 'تُجمع المؤشرات المجهولة لإظهار أحجام الطلبات والضغط على الخدمات واتجاهات النقص.', en: 'Anonymous metrics are aggregated to expose request volumes, service stress, and shortage trends.' },
+  'shelters.gpsSearch': { ar: 'نظرة على التوجيه', en: 'Routing overview' },
+  'shelters.manualSearch': { ar: 'استعراض الخدمات', en: 'Browse services' },
+                           'shelters.searchPlaceholder': { ar: 'ابحث عن ملجأ بالاسم أو العنوان...', en: 'Search by name or address...' },
+  'shelters.locating': { ar: 'جاري تحديد موقعك...', en: 'Locating you...' },
   'shelters.noResults': { ar: 'لا توجد ملاجئ', en: 'No shelters found' },
-
+                         
+  
   // Clinics
   'clinics.title': { ar: 'العيادات والصيدليات', en: 'Clinics & Pharmacies' },
   'clinics.subtitle': { ar: 'المرافق الطبية المتاحة داخل شبكة AidLine مع تفاصيل الخدمات.', en: 'Medical facilities available in the AidLine network with service details.' },
@@ -86,14 +97,6 @@ export const translations = {
   'sos.sendAnother': { ar: 'إرسال تنبيه آخر', en: 'Send Another Alert' },
   'sos.loginRequired': { ar: 'يجب تسجيل الدخول لإرسال تنبيه', en: 'Login required to send alert' },
 
-  // Gas Stations
-  'gas.title': { ar: 'محطات الوقود', en: 'Gas Stations' },
-  'gas.subtitle': { ar: 'محطات الوقود حسب المنطقة مع حالة التشغيل.', en: 'Gas stations by district with operating status.' },
-  'gas.searchPlaceholder': { ar: 'ابحث عن محطة بالاسم...', en: 'Search by station name...' },
-  'gas.noResults': { ar: 'لا توجد محطات وقود', en: 'No gas stations found' },
-  'nav.gas': { ar: 'الوقود', en: 'Gas' },
-  'home.findGas': { ar: 'محطات الوقود', en: 'Gas Stations' },
-  'home.findGasDesc': { ar: 'ابحث عن محطات الوقود المفتوحة', en: 'Find open gasoline stations' },
 
   // Chat
   'home.chat': { ar: 'الدردشة والدعم', en: 'Chat & Support' },
