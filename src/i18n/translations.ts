@@ -11,23 +11,22 @@ export const translations = {
   'nav.sos': { ar: 'طوارئ', en: 'SOS' },
 
   // Home page
-   'home.tagline': { ar: 'نسّق طلبات الأزمات حسب الحاجة والأولوية. يوجّه AidLine الرعاية الصحية والأدوية والدعم الإنساني عبر قنوات آمنة من دون تتبع الموقع.', en: 'Coordinate crisis requests by need and urgency. AidLine routes healthcare, medication, and humanitarian support through secure channels without location tracking.' },
+  'home.tagline': { ar: 'نسّق طلبات الأزمات حسب الحاجة والأولوية. يوجّه AidLine الرعاية الصحية والأدوية والدعم الإنساني عبر قنوات آمنة من دون تتبع الموقع.', en: 'Coordinate crisis requests by need and urgency. AidLine routes healthcare, medication, and humanitarian support through secure channels without location tracking.' },
   'home.sos': { ar: 'طوارئ SOS', en: 'SOS Emergency' },
   'home.findShelter': { ar: 'ابحث عن ملجأ', en: 'Find Shelter' },
-  'home.findShelterDesc': { ar: 'اطّلع على الملاجئ المتاحة ضمن شبكة الاستجابة', en: 'View available shelters across the response network' },
+  'home.findShelterDesc': { ar: 'حدد أقرب الملاجئ المتاحة', en: 'Locate nearest available shelters' },
   'home.findFood': { ar: 'ابحث عن طعام', en: 'Find Food' },
   'home.findFoodDesc': { ar: 'نقاط توزيع الطعام النشطة', en: 'Active food distribution points' },
   'home.findClinics': { ar: 'ابحث عن عيادات', en: 'Find Clinics' },
- 'home.medicationDesc': { ar: 'وجّه احتياجات الأدوية إلى الصيدليات وشركاء الدعم', en: 'Route medication needs to pharmacies and aid partners' },
+  'home.findClinicsDesc': { ar: 'تصفّح مقدمي الرعاية الصحية المسجلين في الشبكة', en: 'Browse registered healthcare providers in the network' },
   'home.medication': { ar: 'الأدوية', en: 'Medication' },
-  'home.medicationDesc': { ar: 'سجّل احتياجاتك الدوائية', en: 'Register medication needs' },
+  'home.medicationDesc': { ar: 'وجّه احتياجات الأدوية إلى الصيدليات وشركاء الدعم', en: 'Route medication needs to pharmacies and aid partners' },
   'home.volunteer': { ar: 'تطوّع', en: 'Volunteer' },
-  'home.volunteerDesc': { ar: 'home.volunteerDesc': { ar: 'سجّل مهاراتك للمهام المنظمة', en: 'Register skills for structured assignments' },
+  'home.volunteerDesc': { ar: 'سجّل مهاراتك للمهام المنظمة', en: 'Register skills for structured assignments' },
   'home.activeShelters': { ar: 'ملاجئ نشطة', en: 'Active Shelters' },
   'home.volunteersCount': { ar: 'متطوعون', en: 'Volunteers' },
   'home.ngosActive': { ar: 'منظمات نشطة', en: 'NGOs Active' },
-
-   'home.pipelineTitle': { ar: 'كيف يعمل AidLine بدون موقع', en: 'How AidLine works without location data' },
+  'home.pipelineTitle': { ar: 'كيف يعمل AidLine بدون موقع', en: 'How AidLine works without location data' },
   'home.pipelineSubtitle': { ar: 'تنتقل كل حالة من الإدخال إلى الفرز ثم التوجيه والاتصال الآمن حتى الإغلاق، بينما تغذي البيانات المجهولة لوحات التحليل المؤسسي.', en: 'Every case moves from intake to triage, routing, secure communication, and resolution, while anonymous data feeds institutional intelligence.' },
   'home.pipeline.request.title': { ar: 'إدخال الطلب', en: 'Request entry' },
   'home.pipeline.request.body': { ar: 'يرسل المستخدم نوع المساعدة والوصف ومستوى الاستعجال والمرفقات الاختيارية.', en: 'The user submits assistance type, description, urgency, and any optional attachments.' },
@@ -41,22 +40,26 @@ export const translations = {
   'home.pipeline.resolution.body': { ar: 'يقدم المستجيب التعليمات أو التأكيد أو المتابعة حتى إغلاق الحالة.', en: 'Responders provide instructions, confirmations, or follow-up until the case is closed.' },
   'home.pipeline.intelligence.title': { ar: 'ذكاء الأزمات', en: 'Crisis intelligence' },
   'home.pipeline.intelligence.body': { ar: 'تُجمع المؤشرات المجهولة لإظهار أحجام الطلبات والضغط على الخدمات واتجاهات النقص.', en: 'Anonymous metrics are aggregated to expose request volumes, service stress, and shortage trends.' },
+
+  // Shelters
+  'shelters.title': { ar: 'الملاجئ', en: 'Shelters' },
+  'shelters.subtitle': { ar: 'دعم المأوى يدار ضمن مسارات تنسيق المنظمات مع عرض السعة الحالية.', en: 'Shelter support is managed through NGO coordination workflows with current capacity visibility.' },
+  'shelters.available': { ar: 'متاح', en: 'available' },
   'shelters.gpsSearch': { ar: 'نظرة على التوجيه', en: 'Routing overview' },
   'shelters.manualSearch': { ar: 'استعراض الخدمات', en: 'Browse services' },
-                           'shelters.searchPlaceholder': { ar: 'ابحث عن ملجأ بالاسم أو العنوان...', en: 'Search by name or address...' },
+  'shelters.searchPlaceholder': { ar: 'ابحث عن ملجأ بالاسم أو العنوان...', en: 'Search by name or address...' },
   'shelters.locating': { ar: 'جاري تحديد موقعك...', en: 'Locating you...' },
   'shelters.noResults': { ar: 'لا توجد ملاجئ', en: 'No shelters found' },
-                         
-  
+
   // Clinics
   'clinics.title': { ar: 'العيادات والصيدليات', en: 'Clinics & Pharmacies' },
-  'clinics.subtitle': { ar: 'المرافق الطبية المتاحة داخل شبكة AidLine مع تفاصيل الخدمات.', en: 'Medical facilities available in the AidLine network with service details.' },
+  'clinics.subtitle': { ar: 'مقدمو الرعاية الصحية المسجلون في شبكة AidLine مع تفاصيل الخدمات المتاحة.', en: 'Registered healthcare providers in the AidLine network with their available services.' },
   'clinics.open': { ar: 'مفتوح', en: 'Open' },
   'clinics.closed': { ar: 'مغلق', en: 'Closed' },
 
   // Medication
   'med.title': { ar: 'سجل الأدوية', en: 'Medication Registry' },
-  'med.subtitle': { ar: 'سجّل احتياجات الأدوية المزمنة ليتم تلبيتها من المنظمات.', en: 'Register chronic medication needs for NGO fulfillment.' },
+  'med.subtitle': { ar: 'قدّم احتياجك الدوائي ليتم فرزه وتوجيهه إلى الصيدليات أو منظمات الدعم.', en: 'Submit medication needs so they can be triaged and routed to pharmacies or aid partners.' },
   'med.newRequest': { ar: 'طلب جديد', en: 'New Request' },
   'med.medication': { ar: 'الدواء', en: 'Medication' },
   'med.selectMed': { ar: 'اختر الدواء...', en: 'Select medication...' },
@@ -73,7 +76,7 @@ export const translations = {
 
   // Volunteers
   'vol.title': { ar: 'المتطوعون', en: 'Volunteers' },
-  'vol.subtitle': { ar: 'متطوعون ماهرون يتم تكليفهم حسب الأولوية والخبرة.', en: 'Skilled volunteers assigned by priority and expertise.' },
+  'vol.subtitle': { ar: 'متطوعون يُكلَّفون بمهام منظمة حسب المهارة والتوافر وقنوات الخدمة.', en: 'Volunteers are assigned through structured workflows based on skills, availability, and service channels.' },
   'vol.register': { ar: 'سجّل كمتطوع', en: 'Register as Volunteer' },
   'vol.skills': { ar: 'المهارات', en: 'Skills' },
   'vol.selectSkills': { ar: 'اختر مهاراتك', en: 'Select your skills' },
@@ -88,24 +91,32 @@ export const translations = {
 
   // SOS
   'sos.title': { ar: 'طوارئ SOS', en: 'SOS Emergency' },
-  'sos.subtitle': { ar: 'أرسل تنبيه طوارئ ليتم تصنيفه وتوجيهه فوراً إلى الجهات المناسبة.', en: 'Send an emergency alert for immediate triage and routing to the right responders.' },
+  'sos.subtitle': { ar: 'أرسل طلب طوارئ ليتم فرزه وتوجيهه فوراً إلى شبكة الاستجابة المناسبة.', en: 'Send an emergency request so it can be triaged and routed immediately to the right response network.' },
   'sos.placeholder': { ar: 'صف حالة الطوارئ (اختياري)...', en: 'Describe your emergency (optional)...' },
-  'sos.locationAuto': { ar: 'لا يتم جمع أي بيانات موقع', en: 'No location data is collected' },
+  'sos.locationAuto': { ar: 'سيتم توجيه الطلب تلقائياً حسب النوع والأولوية', en: 'The request will be routed automatically by type and urgency' },
   'sos.send': { ar: 'إرسال تنبيه SOS', en: 'SEND SOS ALERT' },
   'sos.sent': { ar: 'تم إرسال التنبيه', en: 'Alert Sent' },
-  'sos.sentMessage': { ar: 'تم إرسال تنبيهك إلى محرك الفرز والتوجيه وسيتم التواصل معك عبر القناة الآمنة.', en: 'Your alert was sent to the triage and routing engine. Responders will contact you through secure messaging.' },
+  'sos.sentMessage': { ar: 'تم فرز طلب SOS وتوجيهه إلى شبكة الاستجابة المناسبة. استخدم الرسائل الآمنة أو أرقام الطوارئ للمتابعة عند الحاجة.', en: 'Your SOS request has been triaged and routed to the appropriate response network. Use secure messaging or emergency numbers for follow-up when needed.' },
   'sos.sendAnother': { ar: 'إرسال تنبيه آخر', en: 'Send Another Alert' },
   'sos.loginRequired': { ar: 'يجب تسجيل الدخول لإرسال تنبيه', en: 'Login required to send alert' },
 
+  // Gas Stations
+  'gas.title': { ar: 'محطات الوقود', en: 'Gas Stations' },
+  'gas.subtitle': { ar: 'سجل تشغيلي لمحطات الوقود ضمن شبكة الدعم.', en: 'Operational registry of fuel stations within the support network.' },
+  'gas.searchPlaceholder': { ar: 'ابحث عن محطة بالاسم...', en: 'Search by station name...' },
+  'gas.noResults': { ar: 'لا توجد محطات وقود', en: 'No gas stations found' },
+  'nav.gas': { ar: 'الوقود', en: 'Gas' },
+  'home.findGas': { ar: 'محطات الوقود', en: 'Gas Stations' },
+  'home.findGasDesc': { ar: 'ابحث عن محطات الوقود المفتوحة', en: 'Find open gasoline stations' },
 
   // Chat
   'home.chat': { ar: 'الدردشة والدعم', en: 'Chat & Support' },
-  'home.chatDesc': { ar: 'تواصل مع فريق الدعم بشكل مجهول', en: 'Contact support anonymously' },
+  'home.chatDesc': { ar: 'نسّق مع فرق الدعم والمنظمات عبر قناة آمنة', en: 'Coordinate with support teams and NGOs through a secure channel' },
   'nav.chat': { ar: 'الدعم', en: 'Support' },
 
   // Food
   'food.title': { ar: 'توزيع الطعام', en: 'Food Distribution' },
-  'food.subtitle': { ar: 'نقاط توزيع الطعام النشطة داخل شبكة المنصة.', en: 'Active food distribution points within the platform network.' },
+  'food.subtitle': { ar: 'نقاط توزيع الطعام النشطة داخل شبكة الاستجابة.', en: 'Active food distribution points inside the response network.' },
   'food.open': { ar: 'مفتوح', en: 'Open' },
   'food.closed': { ar: 'مغلق', en: 'Closed' },
 
