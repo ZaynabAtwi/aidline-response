@@ -4,18 +4,16 @@ export function AnnouncementBanner() {
   const { lang } = useLanguage();
 
   return (
-    <div className="w-full bg-amber-500 text-black text-center py-2.5 px-4 text-sm font-medium">
+     <div className="w-full bg-amber-500 px-4 py-2.5 text-center text-sm font-medium text-black">
       {lang === "ar"
-        ? "🏠 بحاجة إلى ملجأ؟ تفضل بزيارة: "
-        : "🏠 Need shelter? Visit: "}
-      <a
-        href="https://find.shelterslebanon.info"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="underline font-bold hover:text-white transition-colors"
+          ? "يُوجّه AidLine الطلبات حسب الحاجة والأولوية من دون GPS أو تتبع للموقع. "
+        : "AidLine routes requests by need and urgency without GPS or location tracking. "}
+      <Link
+        to="/chat"
+        className="font-bold underline transition-colors hover:text-white"
       >
-        find.shelterslebanon.info
-      </a>
+        {lang === "ar" ? "افتح قناة الدعم الآمنة" : "Open the secure support channel"}
+      </Link>
     </div>
   );
 }
